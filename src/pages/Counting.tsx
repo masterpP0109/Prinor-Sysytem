@@ -29,9 +29,9 @@ const SHELVES = [
 
 // Mock counting data
 const mockCountData: CountItem[] = [
-  { id: "1", name: "Wireless Headphones", price: 89.99, shelf: "left-shelf", initialCount: 15, countedQuantity: null, isCounted: false },
-  { id: "2", name: "Bluetooth Speaker", price: 45.00, shelf: "left-shelf", initialCount: 8, countedQuantity: null, isCounted: false },
-  { id: "3", name: "Cotton T-Shirt", price: 24.99, shelf: "center-rack", initialCount: 50, countedQuantity: null, isCounted: false },
+  { id: "1", name: "Wireless Headphones", price: 19.99, shelf: "left-shelf", initialCount: 15, countedQuantity: null, isCounted: false },
+  { id: "2", name: "Bluetooth Speaker", price: 15.00, shelf: "left-shelf", initialCount: 8, countedQuantity: null, isCounted: false },
+  { id: "3", name: "Cotton ", price: 0.59, shelf: "center-rack", initialCount: 50, countedQuantity: null, isCounted: false },
   { id: "4", name: "Jeans", price: 59.99, shelf: "center-rack", initialCount: 25, countedQuantity: null, isCounted: false },
   { id: "5", name: "Notebook Set", price: 12.50, shelf: "big-deep", initialCount: 30, countedQuantity: null, isCounted: false },
   { id: "6", name: "Pens (Pack)", price: 8.99, shelf: "big-deep", initialCount: 45, countedQuantity: null, isCounted: false },
