@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,9 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Package, Save, ArrowLeft, CheckCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ClipboardCheck, Package, Save, ArrowLeft, CheckCircle, Plus } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CountItem {
   id: string;
@@ -20,12 +23,12 @@ interface CountItem {
   isCounted: boolean;
 }
 
-const SHELVES = [
-  { id: "left-shelf", name: "Left Shelf", description: "Electronics and accessories" },
-  { id: "big-deep", name: "Big Deep", description: "Books and office supplies" },
-  { id: "center-rack", name: "Center Rack", description: "Clothing and textiles" },
-  { id: "storage-room", name: "Storage Room", description: "Food and consumables" },
-];
+interface Shelf {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+}
 
 // Mock counting data
 const mockCountData: CountItem[] = [
@@ -40,7 +43,81 @@ const mockCountData: CountItem[] = [
 const Counting = () => {
   const [selectedShelf, setSelectedShelf] = useState<string>("");
   const [countData, setCountData] = useState<CountItem[]>(mockCountData);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newShelfName, setNewShelfName] = useState("");
+  const [newShelfDescription, setNewShelfDescription] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    fetchShelves();
+  }, [user, navigate]);
+
+  const fetchShelves = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shelves')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setShelves(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load shelves",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddShelf = async () => {
+    if (!newShelfName.trim()) {
+      toast({
+        title: "Error",
+        description: "Shelf name is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('shelves')
+        .insert({
+          user_id: user?.id,
+          name: newShelfName.trim(),
+          description: newShelfDescription.trim() || null
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Shelf added successfully"
+      });
+
+      setNewShelfName("");
+      setNewShelfDescription("");
+      setShowAddDialog(false);
+      fetchShelves();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add shelf",
+        variant: "destructive"
+      });
+    }
+  };
 
   const currentShelfItems = countData.filter(item => item.shelf === selectedShelf);
   const totalItems = currentShelfItems.length;
@@ -76,11 +153,11 @@ const Counting = () => {
   };
 
   const getShelfName = (shelfId: string) => {
-    return SHELVES.find(shelf => shelf.id === shelfId)?.name || shelfId;
+    return shelves.find(shelf => shelf.id === shelfId)?.name || shelfId;
   };
 
   const getShelfDescription = (shelfId: string) => {
-    return SHELVES.find(shelf => shelf.id === shelfId)?.description || "";
+    return shelves.find(shelf => shelf.id === shelfId)?.description || "";
   };
 
   const calculateVariance = (item: CountItem) => {
@@ -96,6 +173,17 @@ const Counting = () => {
   const totalValueDifference = currentShelfItems.reduce((sum, item) => {
     return sum + calculateValueDifference(item);
   }, 0);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading shelves...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -113,39 +201,103 @@ const Counting = () => {
               <p className="text-muted-foreground">Count inventory by shelf location</p>
             </div>
           </div>
+          {!selectedShelf && (
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Shelf
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Shelf</DialogTitle>
+                  <DialogDescription>
+                    Create a new shelf location for organizing your inventory
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="shelf-name">Shelf Name</Label>
+                    <Input
+                      id="shelf-name"
+                      value={newShelfName}
+                      onChange={(e) => setNewShelfName(e.target.value)}
+                      placeholder="e.g., Left Shelf, Storage Room"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="shelf-description">Description (Optional)</Label>
+                    <Input
+                      id="shelf-description"
+                      value={newShelfDescription}
+                      onChange={(e) => setNewShelfDescription(e.target.value)}
+                      placeholder="e.g., Electronics and accessories"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddShelf}>
+                      Add Shelf
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {!selectedShelf ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="md:col-span-2">
+          <div className="space-y-6">
+            <Card>
               <CardHeader>
                 <CardTitle>Select Shelf to Count</CardTitle>
                 <CardDescription>Choose which shelf or location you want to count</CardDescription>
               </CardHeader>
             </Card>
             
-            {SHELVES.map(shelf => (
-              <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedShelf(shelf.id)}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    {shelf.name}
-                  </CardTitle>
-                  <CardDescription>{shelf.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">
-                      {mockCountData.filter(item => item.shelf === shelf.id).length} items
-                    </span>
-                    <Button>
-                      <ClipboardCheck className="h-4 w-4 mr-2" />
-                      Start Counting
-                    </Button>
-                  </div>
+            {shelves.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">No shelves found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Add your first shelf to start organizing your inventory
+                  </p>
+                  <Button onClick={() => setShowAddDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Shelf
+                  </Button>
                 </CardContent>
               </Card>
-            ))}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {shelves.map(shelf => (
+                  <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedShelf(shelf.id)}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Package className="h-5 w-5" />
+                        {shelf.name}
+                      </CardTitle>
+                      <CardDescription>{shelf.description || "No description"}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                          {mockCountData.filter(item => item.shelf === shelf.id).length} items
+                        </span>
+                        <Button>
+                          <ClipboardCheck className="h-4 w-4 mr-2" />
+                          Start Counting
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
