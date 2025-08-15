@@ -392,7 +392,7 @@ const Inventory = () => {
             <Button onClick={handleEditSave}>Save Changes</Button>
             {editItem && (
               <Button variant="destructive" onClick={() => handleDeleteItem(editItem.id)}>
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                <Trash2 className="h-5 w-5 mr-2" /> Delete
               </Button>
             )}
           </DialogFooter>
