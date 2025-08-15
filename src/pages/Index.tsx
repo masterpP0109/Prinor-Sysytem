@@ -3,7 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Package, ClipboardCheck, TrendingUp, History, Plus, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+// Helper to load inventory from localStorage
+function loadInventory() {
+  try {
+    const data = localStorage.getItem("countedInventory");
+    if (!data) return [];
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
@@ -35,12 +45,50 @@ const Index = () => {
     navigate('/auth');
   };
 
+  // Dashboard stats state
+  const [dashboardStats, setDashboardStats] = useState({
+    totalItems: 0,
+    totalShelves: 0,
+    totalValue: 0,
+    lastCount: null as null | { date: string; shelf: string },
+  });
+
+  // Compute stats from inventory
+  useEffect(() => {
+    const updateStats = () => {
+      const inventory = loadInventory();
+      let totalItems = 0;
+      let totalValue = 0;
+      const shelfSet = new Set();
+      let lastDate = null;
+      let lastShelf = '';
+      for (const item of inventory) {
+        totalItems += item.currentStock;
+        totalValue += item.price * item.currentStock;
+        shelfSet.add(item.shelf);
+        if (!lastDate || new Date(item.lastCounted) > new Date(lastDate)) {
+          lastDate = item.lastCounted;
+          lastShelf = item.shelf;
+        }
+      }
+      setDashboardStats({
+        totalItems,
+        totalShelves: shelfSet.size,
+        totalValue,
+        lastCount: lastDate ? { date: lastDate, shelf: lastShelf } : null,
+      });
+    };
+    window.addEventListener('focus', updateStats);
+    updateStats();
+    return () => window.removeEventListener('focus', updateStats);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6">
         <div className="mb-8 flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Shelf Shaper Sync</h1>
+            <h1 className="text-4xl font-bold mb-2">Inventory Management System</h1>
             <p className="text-xl text-muted-foreground">Offline-first stocktake management</p>
           </div>
           <Button variant="outline" onClick={handleSignOut}>
@@ -56,8 +104,8 @@ const Index = () => {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,234</div>
-              <p className="text-xs text-muted-foreground">Across 8 shelves</p>
+              <div className="text-2xl font-bold">{dashboardStats.totalItems.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">Across {dashboardStats.totalShelves} shelves</p>
             </CardContent>
           </Card>
 
@@ -67,8 +115,17 @@ const Index = () => {
               <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2 days ago</div>
-              <p className="text-xs text-muted-foreground">Left Shelf section</p>
+              <div className="text-2xl font-bold">
+                {dashboardStats.lastCount ?
+                  (() => {
+                    const daysAgo = Math.floor((Date.now() - new Date(dashboardStats.lastCount.date).getTime()) / (1000 * 60 * 60 * 24));
+                    return daysAgo === 0 ? 'Today' : daysAgo === 1 ? '1 day ago' : `${daysAgo} days ago`;
+                  })()
+                  : '—'}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {dashboardStats.lastCount ? `${dashboardStats.lastCount.shelf} section` : 'No counts yet'}
+              </p>
             </CardContent>
           </Card>
 
@@ -78,7 +135,7 @@ const Index = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$12,456</div>
+              <div className="text-2xl font-bold">${dashboardStats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
               <p className="text-xs text-muted-foreground">Current inventory</p>
             </CardContent>
           </Card>

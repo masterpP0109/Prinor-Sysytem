@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Package, ArrowLeft } from "lucide-react";
+import { Plus, Edit, Package, ArrowLeft, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface InventoryItem {
@@ -19,7 +19,8 @@ interface InventoryItem {
   lastCounted: string;
 }
 
-const SHELVES = [
+// SHELVES is now dynamic, built from both static and counted inventory
+const STATIC_SHELVES = [
   { id: "left-shelf", name: "Left Shelf" },
   { id: "big-deep", name: "Big Deep" },
   { id: "center-rack", name: "Center Rack" },
@@ -38,8 +39,46 @@ const mockInventory: InventoryItem[] = [
   { id: "4", name: "Protein Bars", price: 3.99, category: "Food", shelf: "storage-room", currentStock: 100, lastCounted: "2024-01-07" },
 ];
 
+const loadCountedInventory = (): InventoryItem[] => {
+  try {
+    const data = localStorage.getItem("countedInventory");
+    if (!data) return [];
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+};
+
 const Inventory = () => {
-  const [items, setItems] = useState<InventoryItem[]>(mockInventory);
+  const [items, setItems] = useState<InventoryItem[]>(() => {
+    const counted = loadCountedInventory();
+    const ids = new Set(mockInventory.map(i => i.id));
+    return [...mockInventory, ...counted.filter(i => !ids.has(i.id))];
+  });
+
+  // Build all shelves from static and inventory items
+  const allShelves = (() => {
+    const shelfMap = new Map();
+    // Add static shelves
+    for (const s of STATIC_SHELVES) shelfMap.set(s.id, s.name);
+    // Add shelves from inventory items
+    for (const item of items) {
+      if (!shelfMap.has(item.shelf)) shelfMap.set(item.shelf, item.shelf);
+    }
+    return Array.from(shelfMap.entries()).map(([id, name]) => ({ id, name }));
+  })();
+
+  // Always load latest counted items from localStorage on mount and when window regains focus
+  useEffect(() => {
+    const updateFromStorage = () => {
+      const counted = loadCountedInventory();
+      const ids = new Set(mockInventory.map(i => i.id));
+      setItems([...mockInventory, ...counted.filter(i => !ids.has(i.id))]);
+    };
+    window.addEventListener("focus", updateFromStorage);
+    updateFromStorage();
+    return () => window.removeEventListener("focus", updateFromStorage);
+  }, []);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedShelf, setSelectedShelf] = useState<string>("all");
   const [newItem, setNewItem] = useState({
@@ -49,31 +88,68 @@ const Inventory = () => {
     shelf: "",
     currentStock: ""
   });
+  // Edit item state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
 
   const filteredItems = selectedShelf === "all" 
     ? items 
-    : items.filter(item => item.shelf === selectedShelf);
+    : items.filter(item => item.shelf === (allShelves.find(s => s.id === selectedShelf)?.name || selectedShelf));
 
   const handleAddItem = () => {
     if (!newItem.name || !newItem.price || !newItem.category || !newItem.shelf) return;
-    
+    // Store the shelf name, not id, in the item
+    const shelfObj = allShelves.find(s => s.id === newItem.shelf);
+    const shelfName = shelfObj ? shelfObj.name : newItem.shelf;
     const item: InventoryItem = {
       id: Date.now().toString(),
       name: newItem.name,
       price: parseFloat(newItem.price),
       category: newItem.category,
-      shelf: newItem.shelf,
+      shelf: shelfName,
       currentStock: parseInt(newItem.currentStock) || 0,
       lastCounted: new Date().toISOString().split('T')[0]
     };
-    
-    setItems([...items, item]);
+    const updated = [...items, item];
+    setItems(updated);
+    // Save to localStorage so it persists
+    try {
+      localStorage.setItem("countedInventory", JSON.stringify(updated));
+    } catch {}
     setNewItem({ name: "", price: "", category: "", shelf: "", currentStock: "" });
     setIsDialogOpen(false);
   };
 
+  // Edit item handlers
+  const handleEditClick = (item: InventoryItem) => {
+    setEditItem(item);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = () => {
+    if (!editItem) return;
+    const updated = items.map(i => i.id === editItem.id ? editItem : i);
+    setItems(updated);
+    try {
+      localStorage.setItem("countedInventory", JSON.stringify(updated));
+    } catch {}
+    setEditDialogOpen(false);
+    setEditItem(null);
+  };
+
+  // Delete item handler
+  const handleDeleteItem = (id: string) => {
+    const updated = items.filter(i => i.id !== id);
+    setItems(updated);
+    try {
+      localStorage.setItem("countedInventory", JSON.stringify(updated));
+    } catch {}
+    setEditDialogOpen(false);
+    setEditItem(null);
+  };
+
   const getShelfName = (shelfId: string) => {
-    return SHELVES.find(shelf => shelf.id === shelfId)?.name || shelfId;
+    return allShelves.find(shelf => shelf.id === shelfId)?.name || shelfId;
   };
 
   const totalValue = filteredItems.reduce((sum, item) => sum + (item.price * item.currentStock), 0);
@@ -150,7 +226,7 @@ const Inventory = () => {
                       <SelectValue placeholder="Select shelf" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SHELVES.map(shelf => (
+                      {allShelves.map(shelf => (
                         <SelectItem key={shelf.id} value={shelf.id}>{shelf.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -181,7 +257,7 @@ const Inventory = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Shelves</SelectItem>
-              {SHELVES.map(shelf => (
+              {allShelves.map(shelf => (
                 <SelectItem key={shelf.id} value={shelf.id}>{shelf.name}</SelectItem>
               ))}
             </SelectContent>
@@ -215,7 +291,6 @@ const Inventory = () => {
                     </div>
                   </div>
                 </div>
-                
                 <div className="flex items-center gap-6">
                   <div className="text-right">
                     <p className="text-sm text-muted-foreground">Price</p>
@@ -233,8 +308,11 @@ const Inventory = () => {
                     <p className="text-sm text-muted-foreground">Last Counted</p>
                     <p className="text-sm">{item.lastCounted}</p>
                   </div>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => handleEditClick(item)}>
                     <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(item.id)}>
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -242,6 +320,84 @@ const Inventory = () => {
           ))}
         </div>
       </div>
+
+      {/* Edit Item Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={open => { setEditDialogOpen(open); if (!open) setEditItem(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+            <DialogDescription>Modify inventory item details</DialogDescription>
+          </DialogHeader>
+          {editItem && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-name" className="text-right">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editItem.name}
+                  onChange={e => setEditItem({ ...editItem, name: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-price" className="text-right">Price</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  step="0.01"
+                  value={editItem.price}
+                  onChange={e => setEditItem({ ...editItem, price: parseFloat(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-category" className="text-right">Category</Label>
+                <Select value={editItem.category} onValueChange={value => setEditItem({ ...editItem, category: value })}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-shelf" className="text-right">Shelf</Label>
+                <Select value={editItem.shelf} onValueChange={value => setEditItem({ ...editItem, shelf: value })}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select shelf" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allShelves.map(shelf => (
+                      <SelectItem key={shelf.id} value={shelf.id}>{shelf.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-stock" className="text-right">Stock</Label>
+                <Input
+                  id="edit-stock"
+                  type="number"
+                  value={editItem.currentStock}
+                  onChange={e => setEditItem({ ...editItem, currentStock: parseInt(e.target.value) || 0 })}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={handleEditSave}>Save Changes</Button>
+            {editItem && (
+              <Button variant="destructive" onClick={() => handleDeleteItem(editItem.id)}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

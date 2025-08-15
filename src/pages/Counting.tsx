@@ -43,6 +43,13 @@ const mockCountData: CountItem[] = [
 const Counting = () => {
   const [selectedShelf, setSelectedShelf] = useState<string>("");
   const [countData, setCountData] = useState<CountItem[]>(mockCountData);
+  // Merge shelves from database and mock data (by id or name)
+  const STATIC_SHELVES: Shelf[] = [
+    { id: "left-shelf", name: "Left Shelf", created_at: "", description: "" },
+    { id: "big-deep", name: "Big Deep", created_at: "", description: "" },
+    { id: "center-rack", name: "Center Rack", created_at: "", description: "" },
+    { id: "storage-room", name: "Storage Room", created_at: "", description: "" },
+  ];
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [loading, setLoading] = useState(true);
   const [newShelfName, setNewShelfName] = useState("");
@@ -59,6 +66,14 @@ const Counting = () => {
     }
     fetchShelves();
   }, [user, navigate]);
+
+  // Merge shelves from db and static, dedup by id or name
+  const allShelves = (() => {
+    const map = new Map();
+    for (const s of STATIC_SHELVES) map.set(s.id, s);
+    for (const s of shelves) map.set(s.id, s);
+    return Array.from(map.values());
+  })();
 
   const fetchShelves = async () => {
     try {
@@ -119,7 +134,51 @@ const Counting = () => {
     }
   };
 
-  const currentShelfItems = countData.filter(item => item.shelf === selectedShelf);
+  // Always use shelf name for matching
+  const currentShelf = shelves.find(shelf => shelf.id === selectedShelf);
+  const currentShelfName = currentShelf ? currentShelf.name : selectedShelf;
+  const currentShelfItems = countData.filter(item =>
+    item.shelf === selectedShelf || item.shelf === currentShelfName
+  );
+  // State for adding new item
+  const [showAddItemDialog, setShowAddItemDialog] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemInitialCount, setNewItemInitialCount] = useState("");
+
+  const handleAddItem = () => {
+    if (!newItemName.trim() || !newItemPrice.trim() || !newItemInitialCount.trim()) {
+      toast({
+        title: "Error",
+        description: "All fields are required to add an item.",
+        variant: "destructive"
+      });
+      return;
+    }
+    // Use the shelf name for the item's shelf field for consistency
+    const shelfObj = shelves.find(s => s.id === selectedShelf);
+    const shelfName = shelfObj ? shelfObj.name : selectedShelf;
+    setCountData(items => [
+      ...items,
+      {
+        id: (Math.random() * 1000000).toFixed(0),
+        name: newItemName.trim(),
+        price: parseFloat(newItemPrice),
+        shelf: shelfName,
+        initialCount: parseInt(newItemInitialCount),
+        countedQuantity: null,
+        isCounted: false
+      }
+    ]);
+    setShowAddItemDialog(false);
+    setNewItemName("");
+    setNewItemPrice("");
+    setNewItemInitialCount("");
+    toast({
+      title: "Item Added",
+      description: `Added '${newItemName}' to ${shelfName}`
+    });
+  };
   const totalItems = currentShelfItems.length;
   const countedItems = currentShelfItems.filter(item => item.isCounted).length;
   const progress = totalItems > 0 ? (countedItems / totalItems) * 100 : 0;
@@ -145,6 +204,30 @@ const Counting = () => {
       });
       return;
     }
+
+    // Save counted items to localStorage for Inventory page
+    try {
+      // Load previous inventory
+      const prev = localStorage.getItem("countedInventory");
+      let prevItems = [];
+      if (prev) prevItems = JSON.parse(prev);
+      // Only add/update counted items for this shelf
+      const updated = [
+        ...prevItems.filter(
+          (i) => !currentShelfItems.some(ci => ci.id === i.id)
+        ),
+        ...currentShelfItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          category: "Other", // or set a real category if available
+          shelf: currentShelfName,
+          currentStock: item.countedQuantity ?? 0,
+          lastCounted: new Date().toISOString().split('T')[0]
+        }))
+      ];
+      localStorage.setItem("countedInventory", JSON.stringify(updated));
+    } catch {}
 
     toast({
       title: "Count Saved",
@@ -272,32 +355,33 @@ const Counting = () => {
                   </Button>
                 </CardContent>
               </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {shelves.map(shelf => (
-                  <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedShelf(shelf.id)}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Package className="h-5 w-5" />
-                        {shelf.name}
-                      </CardTitle>
-                      <CardDescription>{shelf.description || "No description"}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">
-                          {mockCountData.filter(item => item.shelf === shelf.id).length} items
-                        </span>
-                        <Button>
-                          <ClipboardCheck className="h-4 w-4 mr-2" />
-                          Start Counting
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
+            ) : null}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {allShelves.map(shelf => (
+                <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedShelf(shelf.id)}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      {shelf.name}
+                    </CardTitle>
+                    <CardDescription>{shelf.description || "No description"}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">
+                        {
+                          countData.filter(item => item.shelf === shelf.id || item.shelf === shelf.name).length
+                        } items
+                      </span>
+                      <Button>
+                        <ClipboardCheck className="h-4 w-4 mr-2" />
+                        Start Counting
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-6">
@@ -315,11 +399,68 @@ const Counting = () => {
                     <Button variant="outline" onClick={() => setSelectedShelf("")}>
                       Change Shelf
                     </Button>
+                    <Button variant="secondary" onClick={() => setShowAddItemDialog(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Item
+                    </Button>
                     <Button onClick={handleSaveCount} disabled={progress < 100}>
                       <Save className="h-4 w-4 mr-2" />
                       Save Count
                     </Button>
                   </div>
+            {/* Add Item Dialog */}
+            <Dialog open={showAddItemDialog} onOpenChange={setShowAddItemDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Item</DialogTitle>
+                  <DialogDescription>
+                    Add a new item to <span className="font-semibold">{getShelfName(selectedShelf)}</span>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="item-name">Item Name</Label>
+                    <Input
+                      id="item-name"
+                      value={newItemName}
+                      onChange={e => setNewItemName(e.target.value)}
+                      placeholder="e.g., New Product"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="item-price">Price</Label>
+                    <Input
+                      id="item-price"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newItemPrice}
+                      onChange={e => setNewItemPrice(e.target.value)}
+                      placeholder="e.g., 9.99"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="item-initial-count">Initial Count</Label>
+                    <Input
+                      id="item-initial-count"
+                      type="number"
+                      min="0"
+                      value={newItemInitialCount}
+                      onChange={e => setNewItemInitialCount(e.target.value)}
+                      placeholder="e.g., 10"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setShowAddItemDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddItem}>
+                      Add Item
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
                 </div>
               </CardHeader>
               <CardContent>
