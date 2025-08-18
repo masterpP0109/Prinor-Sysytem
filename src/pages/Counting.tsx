@@ -30,15 +30,8 @@ interface Shelf {
   created_at: string;
 }
 
-// Mock counting data
-const mockCountData: CountItem[] = [
-  { id: "1", name: "Wireless Headphones", price: 19.99, shelf: "left-shelf", initialCount: 15, countedQuantity: null, isCounted: false },
-  { id: "2", name: "Bluetooth Speaker", price: 15.00, shelf: "left-shelf", initialCount: 8, countedQuantity: null, isCounted: false },
-  { id: "3", name: "Cotton ", price: 0.59, shelf: "center-rack", initialCount: 50, countedQuantity: null, isCounted: false },
-  { id: "4", name: "Jeans", price: 59.99, shelf: "center-rack", initialCount: 25, countedQuantity: null, isCounted: false },
-  { id: "5", name: "Notebook Set", price: 12.50, shelf: "big-deep", initialCount: 30, countedQuantity: null, isCounted: false },
-  { id: "6", name: "Pens (Pack)", price: 8.99, shelf: "big-deep", initialCount: 45, countedQuantity: null, isCounted: false },
-];
+// Empty count data for new users
+const mockCountData: CountItem[] = [];
 
 const Counting = () => {
   const [selectedShelf, setSelectedShelf] = useState<string>("");
@@ -315,18 +308,20 @@ const Counting = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Link to="/">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="shadow-md">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold">Stock Counting</h1>
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Stock Counting
+              </h1>
               <p className="text-muted-foreground">Count inventory by shelf location</p>
             </div>
           </div>

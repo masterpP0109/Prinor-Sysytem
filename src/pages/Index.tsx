@@ -19,11 +19,37 @@ function loadInventory() {
   }
 }
 
-
 const Index = () => {
-  // Always call hooks at the top level
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  // Dashboard stats state
   const [dashboardStats, setDashboardStats] = useState({
     totalItems: 0,
     totalShelves: 0,
@@ -37,23 +63,18 @@ const Index = () => {
     netAssets: 0
   });
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  // Fetch real data from Supabase and merge with localStorage for instant dashboard update after counting
+  // Fetch real data from Supabase
   useEffect(() => {
     if (!user) return;
 
     const fetchDashboardData = async () => {
       try {
-        // Always use countedInventory from localStorage for dashboard stats if available
-        const countedInventory = loadInventory();
-        let items = Array.isArray(countedInventory) ? countedInventory : [];
+        // Fetch items with category classification
+        const { data: items } = await supabase
+          .from('items')
+          .select('*');
 
-        // Fetch shelves (for shelf count)
+        // Fetch shelves
         const { data: shelves } = await supabase
           .from('shelves')
           .select('*');
@@ -75,12 +96,18 @@ const Index = () => {
           .from('payments')
           .select('amount');
 
-        // Calculate stats from countedInventory (localStorage)
-        const totalItems = items.length;
-        const totalValue = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-        // Unique shelf count from countedInventory
-        const shelfSet = new Set(items.map(item => item.shelfName || item.shelf || 'Unknown'));
-        const totalShelves = shelfSet.size;
+        // Fetch latest stock count
+        const { data: lastCount } = await supabase
+          .from('stock_counts')
+          .select('count_date, shelf_id, shelves(name)')
+          .order('count_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        // Calculate stats
+        const totalItems = items?.length || 0;
+        const totalValue = items?.reduce((sum, item) => sum + (Number(item.price) || 0), 0) || 0;
+        const totalShelves = shelves?.length || 0;
 
         // Categorize items (simple categorization by name keywords)
         const groceriesKeywords = ['food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack'];
@@ -89,8 +116,9 @@ const Index = () => {
         let groceriesItems = 0, groceriesValue = 0;
         let gadgetsItems = 0, gadgetsValue = 0;
 
-        items.forEach(item => {
-          const itemName = (item.name || '').toLowerCase();
+        items?.forEach(item => {
+          if (!item?.name) return; // Skip items without names
+          const itemName = item.name.toLowerCase();
           const itemPrice = Number(item.price) || 0;
           
           const isGrocery = groceriesKeywords.some(keyword => itemName.includes(keyword));
@@ -114,28 +142,14 @@ const Index = () => {
         const totalPaymentsAmount = payments?.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0) || 0;
         const netAssets = totalValue + totalPaymentsAmount - totalOrdersAmount;
 
-        // Get last count from countedInventory (most recent item)
-        let lastCount = null;
-        if (items.length > 0) {
-          const sorted = [...items].sort((a, b) => {
-            const da = new Date(a.countedAt || a.updatedAt || a.createdAt || 0).getTime();
-            const db = new Date(b.countedAt || b.updatedAt || b.createdAt || 0).getTime();
-            return db - da;
-          });
-          const mostRecent = sorted[0];
-          if (mostRecent && (mostRecent.countedAt || mostRecent.updatedAt || mostRecent.createdAt)) {
-            lastCount = {
-              date: mostRecent.countedAt || mostRecent.updatedAt || mostRecent.createdAt,
-              shelf: mostRecent.shelfName || mostRecent.shelf || 'Unknown'
-            };
-          }
-        }
-
         setDashboardStats({
           totalItems,
           totalShelves,
           totalValue,
-          lastCount,
+          lastCount: lastCount ? {
+            date: lastCount.count_date,
+            shelf: (lastCount.shelves as any)?.name || 'Unknown'
+          } : null,
           groceriesStats: { items: groceriesItems, value: groceriesValue },
           gadgetsStats: { items: gadgetsItems, value: gadgetsValue },
           recentOrders: orders || [],
@@ -158,37 +172,10 @@ const Index = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, fetchDashboardData)
       .subscribe();
 
-    // Also update dashboard when window regains focus (in case localStorage changed)
-    const onFocus = () => fetchDashboardData();
-    window.addEventListener('focus', onFocus);
-
     return () => {
       supabase.removeChannel(itemsChannel);
-      window.removeEventListener('focus', onFocus);
     };
   }, [user]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
-  };
-
-  // ...existing code...
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
@@ -200,7 +187,7 @@ const Index = () => {
             <div className="flex justify-between items-start mb-6">
               <div className="text-left">
                 <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Inventory Management System
+                  Smart Inventory Hub
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-2xl">
                   Advanced stocktake management for groceries & gadgets with real-time tracking
@@ -294,10 +281,9 @@ const Index = () => {
                     <div className="text-sm text-muted-foreground">Value</div>
                   </div>
                 </div>
-                {/* TODO: Create /inventory/groceries page for groceries-only inventory */}
-                <Link to="/inventory/groceries" className="block">
+                <Link to="/groceries" className="block">
                   <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-                    <Store className="h-4 w-4 mr-2" />
+                    <ShoppingBasket className="h-4 w-4 mr-2" />
                     Manage Groceries
                   </Button>
                 </Link>
@@ -324,10 +310,9 @@ const Index = () => {
                     <div className="text-sm text-muted-foreground">Value</div>
                   </div>
                 </div>
-                {/* TODO: Create /inventory/gadgets page for gadgets-only inventory */}
-                <Link to="/inventory/gadgets" className="block">
+                <Link to="/gadgets" className="block">
                   <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    <Package className="h-4 w-4 mr-2" />
+                    <Smartphone className="h-4 w-4 mr-2" />
                     Manage Gadgets
                   </Button>
                 </Link>

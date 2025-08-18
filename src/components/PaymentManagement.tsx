@@ -102,7 +102,7 @@ export const PaymentManagement = () => {
             <CreditCard className="h-5 w-5" />
             Payments Management
           </CardTitle>
-          <CardDescription>Track payments received</CardDescription>
+          <CardDescription>Track money going out (supplier payments, etc.)</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -114,7 +114,7 @@ export const PaymentManagement = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Record New Payment</DialogTitle>
-              <DialogDescription>Add a payment received from customers</DialogDescription>
+              <DialogDescription>Record money going out (supplier payments, expenses, etc.)</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -174,8 +174,8 @@ export const PaymentManagement = () => {
       <CardContent>
         <div className="space-y-4">
           <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-            <span className="text-sm font-medium">Total Payments:</span>
-            <span className="text-lg font-bold text-green-600">${totalPayments.toFixed(2)}</span>
+            <span className="text-sm font-medium">Total Outgoing:</span>
+            <span className="text-lg font-bold text-red-600">${totalPayments.toFixed(2)}</span>
           </div>
           
           <div className="space-y-2 max-h-48 overflow-y-auto">
