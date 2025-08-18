@@ -75,6 +75,19 @@ const Counting = () => {
     return Array.from(map.values());
   })();
 
+  // Remove items from counting if deleted in inventory (localStorage)
+  useEffect(() => {
+    const syncWithInventory = () => {
+      const inv = localStorage.getItem("countedInventory");
+      if (!inv) return;
+      const inventoryIds = new Set(JSON.parse(inv).map((i: any) => i.id));
+      setCountData(items => items.filter(item => inventoryIds.has(item.id)));
+    };
+    window.addEventListener('focus', syncWithInventory);
+    syncWithInventory();
+    return () => window.removeEventListener('focus', syncWithInventory);
+  }, []);
+
   const fetchShelves = async () => {
     try {
       const { data, error } = await supabase
@@ -134,6 +147,23 @@ const Counting = () => {
     }
   };
 
+  // Delete shelf (only user-created, not static)
+  const handleDeleteShelf = async (shelfId: string) => {
+    const shelf = shelves.find(s => s.id === shelfId);
+    if (!shelf) return;
+    if (!window.confirm(`Delete shelf '${shelf.name}'? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from('shelves').delete().eq('id', shelfId);
+      if (error) throw error;
+      setShelves(shelves => shelves.filter(s => s.id !== shelfId));
+      setCountData(items => items.filter(item => item.shelf !== shelf.name && item.shelf !== shelfId));
+      toast({ title: "Shelf Deleted", description: `Shelf '${shelf.name}' deleted.` });
+      if (selectedShelf === shelfId) setSelectedShelf("");
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete shelf", variant: "destructive" });
+    }
+  };
+
   // Always use shelf name for matching
   const currentShelf = shelves.find(shelf => shelf.id === selectedShelf);
   const currentShelfName = currentShelf ? currentShelf.name : selectedShelf;
@@ -145,6 +175,19 @@ const Counting = () => {
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
   const [newItemInitialCount, setNewItemInitialCount] = useState("");
+
+  // Delete item from shelf
+  const handleDeleteItem = (itemId: string) => {
+    if (!window.confirm("Delete this item from counting?")) return;
+    setCountData(items => items.filter(item => item.id !== itemId));
+    // Also remove from countedInventory if present
+    const prev = localStorage.getItem("countedInventory");
+    if (prev) {
+      const arr = JSON.parse(prev).filter((i: any) => i.id !== itemId);
+      localStorage.setItem("countedInventory", JSON.stringify(arr));
+    }
+    toast({ title: "Item Deleted", description: "Item removed from shelf." });
+  };
 
   const handleAddItem = () => {
     if (!newItemName.trim() || !newItemPrice.trim() || !newItemInitialCount.trim()) {
@@ -212,6 +255,7 @@ const Counting = () => {
       let prevItems = [];
       if (prev) prevItems = JSON.parse(prev);
       // Only add/update counted items for this shelf
+      const now = new Date().toISOString();
       const updated = [
         ...prevItems.filter(
           (i) => !currentShelfItems.some(ci => ci.id === i.id)
@@ -222,8 +266,10 @@ const Counting = () => {
           price: item.price,
           category: "Other", // or set a real category if available
           shelf: currentShelfName,
+          shelfName: currentShelfName,
           currentStock: item.countedQuantity ?? 0,
-          lastCounted: new Date().toISOString().split('T')[0]
+          countedAt: now,
+          lastCounted: now
         }))
       ];
       localStorage.setItem("countedInventory", JSON.stringify(updated));
@@ -358,12 +404,20 @@ const Counting = () => {
             ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {allShelves.map(shelf => (
-                <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedShelf(shelf.id)}>
+                <Card key={shelf.id} className="hover:shadow-lg transition-shadow cursor-pointer group" onClick={() => setSelectedShelf(shelf.id)}>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5" />
-                      {shelf.name}
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Package className="h-5 w-5" />
+                        {shelf.name}
+                      </CardTitle>
+                      {/* Only allow delete for user-created shelves */}
+                      {shelves.some(s => s.id === shelf.id) && (
+                        <Button variant="destructive" size="sm" className="opacity-70 group-hover:opacity-100" onClick={e => { e.stopPropagation(); handleDeleteShelf(shelf.id); }}>
+                          Delete
+                        </Button>
+                      )}
+                    </div>
                     <CardDescription>{shelf.description || "No description"}</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -491,13 +545,11 @@ const Counting = () => {
                           <p className="text-sm text-muted-foreground">${item.price.toFixed(2)} each</p>
                         </div>
                       </div>
-                      
                       <div className="flex items-center gap-6">
                         <div className="text-center">
                           <Label className="text-xs text-muted-foreground">Initial Count</Label>
                           <p className="font-semibold">{item.initialCount}</p>
                         </div>
-                        
                         <div className="text-center min-w-[100px]">
                           <Label htmlFor={`count-${item.id}`} className="text-xs text-muted-foreground">Counted</Label>
                           <Input
@@ -510,7 +562,6 @@ const Counting = () => {
                             placeholder="0"
                           />
                         </div>
-                        
                         <div className="text-center min-w-[80px]">
                           <Label className="text-xs text-muted-foreground">Variance</Label>
                           <p className={`font-semibold ${
@@ -521,7 +572,6 @@ const Counting = () => {
                             {calculateVariance(item) > 0 ? '+' : ''}{calculateVariance(item)}
                           </p>
                         </div>
-                        
                         <div className="text-center min-w-[100px]">
                           <Label className="text-xs text-muted-foreground">Value Diff</Label>
                           <p className={`font-semibold ${
@@ -532,6 +582,9 @@ const Counting = () => {
                             {calculateValueDifference(item) > 0 ? '+' : ''}${calculateValueDifference(item).toFixed(2)}
                           </p>
                         </div>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteItem(item.id)}>
+                          Delete
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

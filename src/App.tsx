@@ -10,6 +10,9 @@ import Counting from "./pages/Counting";
 import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Groceries from "./pages/Groceries";
+// TODO: Create and import Gadgets page when ready
+const Gadgets = () => <div className="min-h-screen flex items-center justify-center text-2xl">Gadgets Inventory Coming Soon</div>;
 
 const queryClient = new QueryClient();
 
@@ -23,6 +26,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/inventory/groceries" element={<Groceries />} />
+            <Route path="/inventory/gadgets" element={<Gadgets />} />
             <Route path="/counting" element={<Counting />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/auth" element={<Auth />} />
