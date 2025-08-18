@@ -281,9 +281,9 @@ const Index = () => {
                     <div className="text-sm text-muted-foreground">Value</div>
                   </div>
                 </div>
-                <Link to="/inventory" className="block">
+                <Link to="/groceries" className="block">
                   <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-                    <Store className="h-4 w-4 mr-2" />
+                    <ShoppingBasket className="h-4 w-4 mr-2" />
                     Manage Groceries
                   </Button>
                 </Link>
@@ -310,9 +310,9 @@ const Index = () => {
                     <div className="text-sm text-muted-foreground">Value</div>
                   </div>
                 </div>
-                <Link to="/inventory" className="block">
+                <Link to="/gadgets" className="block">
                   <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    <Package className="h-4 w-4 mr-2" />
+                    <Smartphone className="h-4 w-4 mr-2" />
                     Manage Gadgets
                   </Button>
                 </Link>

@@ -10,6 +10,8 @@ import Counting from "./pages/Counting";
 import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Gadgets from "./pages/Gadgets";
+import Groceries from "./pages/Groceries";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +25,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/gadgets" element={<Gadgets />} />
+            <Route path="/groceries" element={<Groceries />} />
             <Route path="/counting" element={<Counting />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/auth" element={<Auth />} />
