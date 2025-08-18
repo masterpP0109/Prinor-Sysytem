@@ -15,44 +15,8 @@ interface StocktakeReport {
   status: "completed" | "in-progress" | "pending";
 }
 
-const mockReports: StocktakeReport[] = [
-  {
-    id: "1",
-    shelfName: "Left Shelf",
-    date: "2024-01-12",
-    itemsCounted: 15,
-    totalItems: 15,
-    valueChange: 125.50,
-    status: "completed"
-  },
-  {
-    id: "2", 
-    shelfName: "Center Rack",
-    date: "2024-01-11",
-    itemsCounted: 20,
-    totalItems: 25,
-    valueChange: -45.00,
-    status: "in-progress"
-  },
-  {
-    id: "3",
-    shelfName: "Big Deep",
-    date: "2024-01-10",
-    itemsCounted: 12,
-    totalItems: 12,
-    valueChange: 89.99,
-    status: "completed"
-  },
-  {
-    id: "4",
-    shelfName: "Storage Room",
-    date: "2024-01-09",
-    itemsCounted: 0,
-    totalItems: 8,
-    valueChange: 0,
-    status: "pending"
-  }
-];
+// Empty reports for new users
+const mockReports: StocktakeReport[] = [];
 
 const Reports = () => {
   const completedReports = mockReports.filter(r => r.status === "completed");
@@ -75,18 +39,20 @@ const Reports = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Link to="/">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="shadow-md">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold">Stocktake Reports</h1>
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Stocktake Reports
+              </h1>
               <p className="text-muted-foreground">View counting progress and valuation changes</p>
             </div>
           </div>
@@ -97,6 +63,21 @@ const Reports = () => {
           </Button>
         </div>
 
+        {mockReports.length === 0 ? (
+          <Card className="text-center p-8">
+            <CardContent>
+              <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No reports yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Start counting inventory to generate reports
+              </p>
+              <Link to="/counting">
+                <Button>Start Counting</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -253,11 +234,13 @@ const Reports = () => {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
-
-export default Reports;
+           </CardContent>
+         </Card>
+          </>
+        )}
+       </div>
+     </div>
+   );
+ };
+ 
+ export default Reports;

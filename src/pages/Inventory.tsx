@@ -28,16 +28,11 @@ const STATIC_SHELVES = [
 ];
 
 const CATEGORIES = [
-  "Electronics", "Clothing", "Books", "Food", "Tools", "Other"
+  "Groceries", "Gadgets", "Electronics", "Clothing", "Books", "Food", "Tools", "Other"
 ];
 
-// Mock data
-const mockInventory: InventoryItem[] = [
-  { id: "1", name: "Wireless Headphones", price: 89.99, category: "Electronics", shelf: "left-shelf", currentStock: 15, lastCounted: "2024-01-10" },
-  { id: "2", name: "Cotton T-Shirt", price: 24.99, category: "Clothing", shelf: "center-rack", currentStock: 50, lastCounted: "2024-01-08" },
-  { id: "3", name: "Notebook Set", price: 12.50, category: "Books", shelf: "big-deep", currentStock: 30, lastCounted: "2024-01-09" },
-  { id: "4", name: "Protein Bars", price: 3.99, category: "Food", shelf: "storage-room", currentStock: 100, lastCounted: "2024-01-07" },
-];
+// Empty inventory for new users
+const mockInventory: InventoryItem[] = [];
 
 const loadCountedInventory = (): InventoryItem[] => {
   try {
@@ -155,18 +150,20 @@ const Inventory = () => {
   const totalValue = filteredItems.reduce((sum, item) => sum + (item.price * item.currentStock), 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Link to="/">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="shadow-md">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
             </Link>
             <div>
-              <h1 className="text-3xl font-bold">Inventory Management</h1>
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Inventory Management
+              </h1>
               <p className="text-muted-foreground">Manage your items and pricing</p>
             </div>
           </div>

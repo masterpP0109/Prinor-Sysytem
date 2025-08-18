@@ -102,7 +102,7 @@ export const OrderManagement = () => {
             <ShoppingCart className="h-5 w-5" />
             Orders Management
           </CardTitle>
-          <CardDescription>Track orders that reduce inventory</CardDescription>
+          <CardDescription>Track inventory purchases for your shop</CardDescription>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -114,7 +114,7 @@ export const OrderManagement = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Order</DialogTitle>
-              <DialogDescription>Record a new order that will be subtracted from inventory</DialogDescription>
+              <DialogDescription>Record a new inventory purchase (stock order) for your shop</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -160,7 +160,7 @@ export const OrderManagement = () => {
                   value={newOrder.notes}
                   onChange={(e) => setNewOrder({...newOrder, notes: e.target.value})}
                   className="col-span-3"
-                  placeholder="Optional notes"
+                  placeholder="Supplier, delivery details, etc."
                 />
               </div>
             </div>

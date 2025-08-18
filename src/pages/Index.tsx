@@ -117,6 +117,7 @@ const Index = () => {
         let gadgetsItems = 0, gadgetsValue = 0;
 
         items?.forEach(item => {
+          if (!item?.name) return; // Skip items without names
           const itemName = item.name.toLowerCase();
           const itemPrice = Number(item.price) || 0;
           
