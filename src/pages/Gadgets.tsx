@@ -1,48 +1,3 @@
-<<<<<<< HEAD
-
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Package } from "lucide-react";
-import { Link } from "react-router-dom";
-
-function loadInventory() {
-  try {
-    const data = localStorage.getItem("countedInventory");
-    if (!data) return [];
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-const groceriesKeywords = [
-  'food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack',
-  'rice', 'oil', 'flour', 'egg', 'juice', 'water', 'cereal', 'sugar', 'salt', 'spice', 'tea', 'coffee', 'butter', 'cheese', 'yogurt', 'biscuit', 'cookie', 'chips', 'soda', 'beverage', 'produce', 'dairy', 'bakery', 'frozen', 'pantry', 'condiment', 'sauce', 'soup', 'canned', 'grain', 'bean', 'nut', 'seed', 'honey', 'jam', 'jelly', 'spread', 'pasta', 'noodle', 'vegetables', 'fruits', 'snacks', 'groceries'
-];
-
-const Groceries = () => {
-  const [items, setItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    const all = loadInventory();
-    // Filter for groceries by name or category
-    const groceries = all.filter(item => {
-      const name = (item.name || "").toLowerCase();
-      const category = (item.category || "").toLowerCase();
-      return groceriesKeywords.some(k => name.includes(k)) || category.includes("grocery") || category.includes("groceries");
-    });
-    setItems(groceries);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="outline" size="sm">
-=======
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,13 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Package, ArrowLeft, Trash2, ShoppingBasket, Apple, Coffee } from "lucide-react";
+import { Plus, Edit, Package, ArrowLeft, Trash2, Smartphone, Cpu, Monitor } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
-interface GroceryItem {
+interface GadgetItem {
   id: string;
   name: string;
   price: number;
@@ -76,14 +31,14 @@ interface Shelf {
   updated_at: string;
 }
 
-const Groceries = () => {
-  const [items, setItems] = useState<GroceryItem[]>([]);
+const Gadgets = () => {
+  const [items, setItems] = useState<GadgetItem[]>([]);
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [selectedShelf, setSelectedShelf] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isShelfDialogOpen, setIsShelfDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editItem, setEditItem] = useState<GroceryItem | null>(null);
+  const [editItem, setEditItem] = useState<GadgetItem | null>(null);
   const [loading, setLoading] = useState(true);
   
   const [newItem, setNewItem] = useState({
@@ -111,7 +66,7 @@ const Groceries = () => {
     try {
       setLoading(true);
       
-      // Fetch grocery items (items with food-related keywords or grocery category)
+      // Fetch gadget items (items with tech-related keywords or gadget category)
       const { data: itemsData, error: itemsError } = await supabase
         .from('items')
         .select('*')
@@ -119,18 +74,16 @@ const Groceries = () => {
 
       if (itemsError) throw itemsError;
 
-      // Filter for grocery-related items
-      const groceryKeywords = ['food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack', 'dairy', 'beverage', 'produce', 'organic', 'fresh'];
-      const groceryItems = itemsData?.filter(item => {
+      // Filter for gadget-related items
+      const gadgetKeywords = ['phone', 'laptop', 'tablet', 'headphone', 'camera', 'watch', 'electronic', 'gadget', 'tech', 'computer', 'speaker', 'mouse', 'keyboard'];
+      const gadgetItems = itemsData?.filter(item => {
         const itemName = item.name?.toLowerCase() || '';
-        return groceryKeywords.some(keyword => itemName.includes(keyword)) || 
-               item.description?.toLowerCase().includes('grocery') ||
-               item.description?.toLowerCase().includes('food') ||
-               (!groceryKeywords.some(keyword => itemName.includes(keyword)) && 
-                !['phone', 'laptop', 'tablet', 'headphone', 'camera', 'watch', 'electronic', 'gadget', 'tech'].some(keyword => itemName.includes(keyword)));
+        return gadgetKeywords.some(keyword => itemName.includes(keyword)) || 
+               item.description?.toLowerCase().includes('gadget') ||
+               item.description?.toLowerCase().includes('electronic');
       }) || [];
 
-      setItems(groceryItems);
+      setItems(gadgetItems);
 
       // Fetch shelves
       const { data: shelvesData, error: shelvesError } = await supabase
@@ -145,7 +98,7 @@ const Groceries = () => {
       console.error('Error fetching data:', error);
       toast({
         title: "Error",
-        description: "Failed to load groceries data",
+        description: "Failed to load gadgets data",
         variant: "destructive"
       });
     } finally {
@@ -169,7 +122,7 @@ const Groceries = () => {
         .insert({
           name: newItem.name,
           price: parseFloat(newItem.price),
-          description: newItem.description + " (Grocery)",
+          description: newItem.description + " (Gadget)",
           user_id: user?.id
         });
 
@@ -177,17 +130,17 @@ const Groceries = () => {
 
       toast({
         title: "Success",
-        description: "Grocery item added successfully"
+        description: "Gadget added successfully"
       });
 
       setNewItem({ name: "", price: "", description: "", shelf: "" });
       setIsDialogOpen(false);
       fetchData();
     } catch (error) {
-      console.error('Error adding grocery item:', error);
+      console.error('Error adding gadget:', error);
       toast({
         title: "Error",
-        description: "Failed to add grocery item",
+        description: "Failed to add gadget",
         variant: "destructive"
       });
     }
@@ -208,7 +161,7 @@ const Groceries = () => {
         .from('shelves')
         .insert({
           name: newShelf.name,
-          description: newShelf.description + " (Groceries Section)",
+          description: newShelf.description + " (Gadgets Section)",
           user_id: user?.id
         });
 
@@ -216,7 +169,7 @@ const Groceries = () => {
 
       toast({
         title: "Success",
-        description: "Grocery shelf added successfully"
+        description: "Gadget shelf added successfully"
       });
 
       setNewShelf({ name: "", description: "" });
@@ -249,17 +202,17 @@ const Groceries = () => {
 
       toast({
         title: "Success",
-        description: "Grocery item updated successfully"
+        description: "Gadget updated successfully"
       });
 
       setEditDialogOpen(false);
       setEditItem(null);
       fetchData();
     } catch (error) {
-      console.error('Error updating grocery item:', error);
+      console.error('Error updating gadget:', error);
       toast({
         title: "Error",
-        description: "Failed to update grocery item",
+        description: "Failed to update gadget",
         variant: "destructive"
       });
     }
@@ -276,17 +229,17 @@ const Groceries = () => {
 
       toast({
         title: "Success",
-        description: "Grocery item deleted successfully"
+        description: "Gadget deleted successfully"
       });
 
       setEditDialogOpen(false);
       setEditItem(null);
       fetchData();
     } catch (error) {
-      console.error('Error deleting grocery item:', error);
+      console.error('Error deleting gadget:', error);
       toast({
         title: "Error",
-        description: "Failed to delete grocery item",
+        description: "Failed to delete gadget",
         variant: "destructive"
       });
     }
@@ -304,66 +257,29 @@ const Groceries = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading groceries...</p>
+          <p>Loading gadgets...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50/50 via-background to-green-100/30">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-background to-blue-100/30">
       <div className="container mx-auto p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Link to="/">
               <Button variant="outline" size="sm" className="shadow-md">
                 <ArrowLeft className="h-4 w-4 mr-2" />
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9
                 Back
               </Button>
             </Link>
             <div>
-<<<<<<< HEAD
-              <h1 className="text-3xl font-bold">Groceries Inventory</h1>
-              <p className="text-muted-foreground">All items categorized as groceries</p>
-            </div>
-          </div>
-        </div>
-
-        {items.length === 0 ? (
-          <Card className="text-center p-8">
-            <CardHeader>
-              <CardTitle>No groceries found</CardTitle>
-              <CardDescription>Add groceries in inventory management or counting</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Package className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {items.map(item => (
-              <Card key={item.id}>
-                <CardHeader>
-                  <CardTitle>{item.name}</CardTitle>
-                  <CardDescription>Shelf: {item.shelfName || item.shelf}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Stock: {item.currentStock ?? 0}</span>
-                    <span className="font-semibold">${Number(item.price).toFixed(2)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-=======
-              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-green-400 bg-clip-text text-transparent flex items-center gap-2">
-                <ShoppingBasket className="h-8 w-8 text-green-600" />
-                Groceries & Food
+              <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent flex items-center gap-2">
+                <Smartphone className="h-8 w-8 text-blue-600" />
+                Gadgets & Electronics
               </h1>
-              <p className="text-muted-foreground">Manage your food & grocery inventory</p>
+              <p className="text-muted-foreground">Manage your tech inventory</p>
             </div>
           </div>
           
@@ -377,8 +293,8 @@ const Groceries = () => {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Grocery Shelf</DialogTitle>
-                  <DialogDescription>Create a new shelf for organizing groceries</DialogDescription>
+                  <DialogTitle>Add Gadget Shelf</DialogTitle>
+                  <DialogDescription>Create a new shelf for organizing gadgets</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -388,7 +304,7 @@ const Groceries = () => {
                       value={newShelf.name}
                       onChange={(e) => setNewShelf({...newShelf, name: e.target.value})}
                       className="col-span-3"
-                      placeholder="e.g., Frozen Foods, Dairy Section"
+                      placeholder="e.g., Electronics Display"
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -398,7 +314,7 @@ const Groceries = () => {
                       value={newShelf.description}
                       onChange={(e) => setNewShelf({...newShelf, description: e.target.value})}
                       className="col-span-3"
-                      placeholder="e.g., Fresh produce and organic items"
+                      placeholder="e.g., Phones and accessories"
                     />
                   </div>
                 </div>
@@ -410,15 +326,15 @@ const Groceries = () => {
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
+                <Button className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Grocery
+                  Add Gadget
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add New Grocery Item</DialogTitle>
-                  <DialogDescription>Add a new grocery item to your food inventory</DialogDescription>
+                  <DialogTitle>Add New Gadget</DialogTitle>
+                  <DialogDescription>Add a new gadget to your tech inventory</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -428,7 +344,7 @@ const Groceries = () => {
                       value={newItem.name}
                       onChange={(e) => setNewItem({...newItem, name: e.target.value})}
                       className="col-span-3"
-                      placeholder="e.g., Organic Apples, Fresh Milk"
+                      placeholder="e.g., iPhone 15, MacBook Pro"
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -440,7 +356,7 @@ const Groceries = () => {
                       value={newItem.price}
                       onChange={(e) => setNewItem({...newItem, price: e.target.value})}
                       className="col-span-3"
-                      placeholder="3.99"
+                      placeholder="999.99"
                     />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -450,12 +366,12 @@ const Groceries = () => {
                       value={newItem.description}
                       onChange={(e) => setNewItem({...newItem, description: e.target.value})}
                       className="col-span-3"
-                      placeholder="Product details, brand, size, etc."
+                      placeholder="Product details and specifications"
                     />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddItem}>Add Grocery</Button>
+                  <Button onClick={handleAddItem}>Add Gadget</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -464,33 +380,33 @@ const Groceries = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <Card className="border-green-200">
+          <Card className="border-blue-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Total Items</CardTitle>
-              <ShoppingBasket className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-blue-600">Total Gadgets</CardTitle>
+              <Smartphone className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">{filteredItems.length}</div>
+              <div className="text-2xl font-bold text-blue-700">{filteredItems.length}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-green-200">
+          <Card className="border-blue-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Total Value</CardTitle>
-              <Apple className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-blue-600">Total Value</CardTitle>
+              <Cpu className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+              <div className="text-2xl font-bold text-blue-700">${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
             </CardContent>
           </Card>
 
-          <Card className="border-green-200">
+          <Card className="border-blue-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-600">Grocery Shelves</CardTitle>
-              <Coffee className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-blue-600">Gadget Shelves</CardTitle>
+              <Monitor className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-700">{shelves.length}</div>
+              <div className="text-2xl font-bold text-blue-700">{shelves.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -515,14 +431,14 @@ const Groceries = () => {
           {filteredItems.length === 0 ? (
             <Card className="text-center p-8">
               <CardContent>
-                <ShoppingBasket className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">No grocery items found</h3>
+                <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">No gadgets found</h3>
                 <p className="text-muted-foreground mb-4">
-                  Add your first grocery item to get started
+                  Add your first gadget to get started
                 </p>
-                <Button onClick={() => setIsDialogOpen(true)} className="bg-green-600 hover:bg-green-700">
+                <Button onClick={() => setIsDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700">
                   <Plus className="h-4 w-4 mr-2" />
-                  Add First Item
+                  Add First Gadget
                 </Button>
               </CardContent>
             </Card>
@@ -531,19 +447,19 @@ const Groceries = () => {
               <Card key={item.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="flex items-center justify-between p-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Apple className="h-6 w-6 text-green-600" />
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Smartphone className="h-6 w-6 text-blue-600" />
                     </div>
                     <div>
                       <h3 className="font-semibold">{item.name}</h3>
                       <p className="text-sm text-muted-foreground">{item.description}</p>
-                      <Badge variant="secondary" className="mt-1 bg-green-100 text-green-700">Grocery</Badge>
+                      <Badge variant="secondary" className="mt-1">Gadget</Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Price</p>
-                      <p className="font-semibold text-green-700">${item.price.toFixed(2)}</p>
+                      <p className="font-semibold text-blue-700">${item.price.toFixed(2)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Added</p>
@@ -563,8 +479,8 @@ const Groceries = () => {
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Edit Grocery Item</DialogTitle>
-              <DialogDescription>Modify grocery item details</DialogDescription>
+              <DialogTitle>Edit Gadget</DialogTitle>
+              <DialogDescription>Modify gadget details</DialogDescription>
             </DialogHeader>
             {editItem && (
               <div className="grid gap-4 py-4">
@@ -610,14 +526,9 @@ const Groceries = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9
       </div>
     </div>
   );
 };
 
-<<<<<<< HEAD
-export default Groceries;
-=======
-export default Groceries;
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9
+export default Gadgets;
