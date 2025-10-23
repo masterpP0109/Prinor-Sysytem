@@ -6,27 +6,27 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, ShoppingCart, Package } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { addOrder, getOrders } from "@/lib/storage";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface Order {
   id: string;
-  order_number: string;
-  total_amount: number;
-  status: string;
-  order_date: string;
-  notes?: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  totalPrice: number;
+  createdAt: string;
 }
 
 export const OrderManagement = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newOrder, setNewOrder] = useState({
-    orderNumber: "",
-    totalAmount: "",
-    status: "pending",
-    notes: ""
+    itemId: "",
+    itemName: "",
+    quantity: "",
+    totalPrice: ""
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -37,22 +37,13 @@ export const OrderManagement = () => {
     }
   }, [user]);
 
-  const fetchOrders = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('order_date', { ascending: false });
-
-      if (error) throw error;
-      setOrders(data || []);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    }
+  const fetchOrders = () => {
+    const data = getOrders();
+    setOrders(data);
   };
 
-  const handleAddOrder = async () => {
-    if (!newOrder.orderNumber || !newOrder.totalAmount) {
+  const handleAddOrder = () => {
+    if (!newOrder.itemId || !newOrder.itemName || !newOrder.quantity || !newOrder.totalPrice) {
       toast({
         title: "Error",
         description: "Please fill in required fields",
@@ -62,24 +53,19 @@ export const OrderManagement = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('orders')
-        .insert({
-          order_number: newOrder.orderNumber,
-          total_amount: parseFloat(newOrder.totalAmount),
-          status: newOrder.status,
-          notes: newOrder.notes,
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addOrder({
+        itemId: newOrder.itemId,
+        itemName: newOrder.itemName,
+        quantity: parseInt(newOrder.quantity),
+        totalPrice: parseFloat(newOrder.totalPrice)
+      });
 
       toast({
         title: "Success",
         description: "Order added successfully"
       });
 
-      setNewOrder({ orderNumber: "", totalAmount: "", status: "pending", notes: "" });
+      setNewOrder({ itemId: "", itemName: "", quantity: "", totalPrice: "" });
       setIsDialogOpen(false);
       fetchOrders();
     } catch (error) {
@@ -92,7 +78,7 @@ export const OrderManagement = () => {
     }
   };
 
-  const totalOrderValue = orders.reduce((sum, order) => sum + order.total_amount, 0);
+  const totalOrderValue = orders.reduce((sum, order) => sum + order.totalPrice, 0);
 
   return (
     <Card className="h-full">
@@ -118,49 +104,46 @@ export const OrderManagement = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="order-number" className="text-right">Order #</Label>
+                <Label htmlFor="item-id" className="text-right">Item ID</Label>
                 <Input
-                  id="order-number"
-                  value={newOrder.orderNumber}
-                  onChange={(e) => setNewOrder({...newOrder, orderNumber: e.target.value})}
+                  id="item-id"
+                  value={newOrder.itemId}
+                  onChange={(e) => setNewOrder({...newOrder, itemId: e.target.value})}
                   className="col-span-3"
-                  placeholder="ORD-001"
+                  placeholder="Item ID"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="total-amount" className="text-right">Total Amount</Label>
+                <Label htmlFor="item-name" className="text-right">Item Name</Label>
                 <Input
-                  id="total-amount"
+                  id="item-name"
+                  value={newOrder.itemName}
+                  onChange={(e) => setNewOrder({...newOrder, itemName: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Item name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={newOrder.quantity}
+                  onChange={(e) => setNewOrder({...newOrder, quantity: e.target.value})}
+                  className="col-span-3"
+                  placeholder="0"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="total-price" className="text-right">Total Price</Label>
+                <Input
+                  id="total-price"
                   type="number"
                   step="0.01"
-                  value={newOrder.totalAmount}
-                  onChange={(e) => setNewOrder({...newOrder, totalAmount: e.target.value})}
+                  value={newOrder.totalPrice}
+                  onChange={(e) => setNewOrder({...newOrder, totalPrice: e.target.value})}
                   className="col-span-3"
                   placeholder="0.00"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="status" className="text-right">Status</Label>
-                <Select value={newOrder.status} onValueChange={(value) => setNewOrder({...newOrder, status: value})}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="notes" className="text-right">Notes</Label>
-                <Input
-                  id="notes"
-                  value={newOrder.notes}
-                  onChange={(e) => setNewOrder({...newOrder, notes: e.target.value})}
-                  className="col-span-3"
-                  placeholder="Supplier, delivery details, etc."
                 />
               </div>
             </div>
@@ -187,10 +170,10 @@ export const OrderManagement = () => {
               orders.slice(0, 5).map((order) => (
                 <div key={order.id} className="flex justify-between items-center p-2 border rounded">
                   <div>
-                    <p className="font-medium">{order.order_number}</p>
-                    <p className="text-xs text-muted-foreground">{order.status}</p>
+                    <p className="font-medium">{order.itemName}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {order.quantity}</p>
                   </div>
-                  <span className="font-semibold">${order.total_amount.toFixed(2)}</span>
+                  <span className="font-semibold">${order.totalPrice.toFixed(2)}</span>
                 </div>
               ))
             )}

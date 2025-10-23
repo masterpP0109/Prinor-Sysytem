@@ -1,48 +1,3 @@
-<<<<<<< HEAD
-
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Package } from "lucide-react";
-import { Link } from "react-router-dom";
-
-function loadInventory() {
-  try {
-    const data = localStorage.getItem("countedInventory");
-    if (!data) return [];
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-const groceriesKeywords = [
-  'food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack',
-  'rice', 'oil', 'flour', 'egg', 'juice', 'water', 'cereal', 'sugar', 'salt', 'spice', 'tea', 'coffee', 'butter', 'cheese', 'yogurt', 'biscuit', 'cookie', 'chips', 'soda', 'beverage', 'produce', 'dairy', 'bakery', 'frozen', 'pantry', 'condiment', 'sauce', 'soup', 'canned', 'grain', 'bean', 'nut', 'seed', 'honey', 'jam', 'jelly', 'spread', 'pasta', 'noodle', 'vegetables', 'fruits', 'snacks', 'groceries'
-];
-
-const Groceries = () => {
-  const [items, setItems] = useState<any[]>([]);
-
-  useEffect(() => {
-    const all = loadInventory();
-    // Filter for groceries by name or category
-    const groceries = all.filter(item => {
-      const name = (item.name || "").toLowerCase();
-      const category = (item.category || "").toLowerCase();
-      return groceriesKeywords.some(k => name.includes(k)) || category.includes("grocery") || category.includes("groceries");
-    });
-    setItems(groceries);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link to="/">
-              <Button variant="outline" size="sm">
-=======
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,27 +8,25 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit, Package, ArrowLeft, Trash2, ShoppingBasket, Apple, Coffee } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { getItems, addItem, updateItem, deleteItem, getShelves, addShelf } from "@/lib/storage";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface GroceryItem {
   id: string;
+  shelfId: string;
   name: string;
+  initialQuantity: number;
+  soldQuantity: number;
+  remainingQuantity: number;
   price: number;
-  description?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
 }
 
 interface Shelf {
   id: string;
   name: string;
-  description?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
 }
 
 const Groceries = () => {
@@ -85,7 +38,7 @@ const Groceries = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<GroceryItem | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [newItem, setNewItem] = useState({
     name: "",
     price: "",
@@ -107,39 +60,25 @@ const Groceries = () => {
     }
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = () => {
     try {
       setLoading(true);
-      
-      // Fetch grocery items (items with food-related keywords or grocery category)
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (itemsError) throw itemsError;
-
-      // Filter for grocery-related items
+      // Fetch all items and filter for grocery-related ones
+      const allItems = getItems();
       const groceryKeywords = ['food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack', 'dairy', 'beverage', 'produce', 'organic', 'fresh'];
-      const groceryItems = itemsData?.filter(item => {
+      const groceryItems = allItems.filter(item => {
         const itemName = item.name?.toLowerCase() || '';
-        return groceryKeywords.some(keyword => itemName.includes(keyword)) || 
-               item.description?.toLowerCase().includes('grocery') ||
-               item.description?.toLowerCase().includes('food') ||
-               (!groceryKeywords.some(keyword => itemName.includes(keyword)) && 
+        return groceryKeywords.some(keyword => itemName.includes(keyword)) ||
+               (!groceryKeywords.some(keyword => itemName.includes(keyword)) &&
                 !['phone', 'laptop', 'tablet', 'headphone', 'camera', 'watch', 'electronic', 'gadget', 'tech'].some(keyword => itemName.includes(keyword)));
-      }) || [];
+      });
 
       setItems(groceryItems);
 
       // Fetch shelves
-      const { data: shelvesData, error: shelvesError } = await supabase
-        .from('shelves')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (shelvesError) throw shelvesError;
-      setShelves(shelvesData || []);
+      const shelvesData = getShelves();
+      setShelves(shelvesData);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -153,7 +92,7 @@ const Groceries = () => {
     }
   };
 
-  const handleAddItem = async () => {
+  const handleAddItem = () => {
     if (!newItem.name || !newItem.price) {
       toast({
         title: "Error",
@@ -164,16 +103,14 @@ const Groceries = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('items')
-        .insert({
-          name: newItem.name,
-          price: parseFloat(newItem.price),
-          description: newItem.description + " (Grocery)",
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addItem({
+        shelfId: newItem.shelf || "",
+        name: newItem.name,
+        initialQuantity: 1,
+        soldQuantity: 0,
+        remainingQuantity: 1,
+        price: parseFloat(newItem.price)
+      });
 
       toast({
         title: "Success",
@@ -193,7 +130,7 @@ const Groceries = () => {
     }
   };
 
-  const handleAddShelf = async () => {
+  const handleAddShelf = () => {
     if (!newShelf.name) {
       toast({
         title: "Error",
@@ -204,15 +141,7 @@ const Groceries = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('shelves')
-        .insert({
-          name: newShelf.name,
-          description: newShelf.description + " (Groceries Section)",
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addShelf(newShelf.name);
 
       toast({
         title: "Success",
@@ -232,20 +161,14 @@ const Groceries = () => {
     }
   };
 
-  const handleEditSave = async () => {
+  const handleEditSave = () => {
     if (!editItem) return;
 
     try {
-      const { error } = await supabase
-        .from('items')
-        .update({
-          name: editItem.name,
-          price: editItem.price,
-          description: editItem.description
-        })
-        .eq('id', editItem.id);
-
-      if (error) throw error;
+      updateItem(editItem.id, {
+        name: editItem.name,
+        price: editItem.price
+      });
 
       toast({
         title: "Success",
@@ -265,14 +188,9 @@ const Groceries = () => {
     }
   };
 
-  const handleDeleteItem = async (id: string) => {
+  const handleDeleteItem = (id: string) => {
     try {
-      const { error } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      deleteItem(id);
 
       toast({
         title: "Success",
@@ -294,7 +212,7 @@ const Groceries = () => {
 
   const filteredItems = useMemo(() => {
     if (selectedShelf === "all") return items;
-    return items.filter(item => item.description?.includes(selectedShelf));
+    return items.filter(item => item.shelfId === selectedShelf);
   }, [items, selectedShelf]);
 
   const totalValue = filteredItems.reduce((sum, item) => sum + item.price, 0);
@@ -318,47 +236,10 @@ const Groceries = () => {
             <Link to="/">
               <Button variant="outline" size="sm" className="shadow-md">
                 <ArrowLeft className="h-4 w-4 mr-2" />
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9
                 Back
               </Button>
             </Link>
             <div>
-<<<<<<< HEAD
-              <h1 className="text-3xl font-bold">Groceries Inventory</h1>
-              <p className="text-muted-foreground">All items categorized as groceries</p>
-            </div>
-          </div>
-        </div>
-
-        {items.length === 0 ? (
-          <Card className="text-center p-8">
-            <CardHeader>
-              <CardTitle>No groceries found</CardTitle>
-              <CardDescription>Add groceries in inventory management or counting</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Package className="h-10 w-10 mx-auto mb-2 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {items.map(item => (
-              <Card key={item.id}>
-                <CardHeader>
-                  <CardTitle>{item.name}</CardTitle>
-                  <CardDescription>Shelf: {item.shelfName || item.shelf}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Stock: {item.currentStock ?? 0}</span>
-                    <span className="font-semibold">${Number(item.price).toFixed(2)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-=======
               <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-green-400 bg-clip-text text-transparent flex items-center gap-2">
                 <ShoppingBasket className="h-8 w-8 text-green-600" />
                 Groceries & Food
@@ -366,7 +247,7 @@ const Groceries = () => {
               <p className="text-muted-foreground">Manage your food & grocery inventory</p>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <Dialog open={isShelfDialogOpen} onOpenChange={setIsShelfDialogOpen}>
               <DialogTrigger asChild>
@@ -536,7 +417,7 @@ const Groceries = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold">{item.name}</h3>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                      <p className="text-sm text-muted-foreground">Qty: {item.remainingQuantity}</p>
                       <Badge variant="secondary" className="mt-1 bg-green-100 text-green-700">Grocery</Badge>
                     </div>
                   </div>
@@ -547,7 +428,7 @@ const Groceries = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Added</p>
-                      <p className="text-sm">{new Date(item.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm">{new Date(item.createdAt).toLocaleDateString()}</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => { setEditItem(item); setEditDialogOpen(true); }}>
                       <Edit className="h-4 w-4" />
@@ -588,15 +469,6 @@ const Groceries = () => {
                     className="col-span-3"
                   />
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-description" className="text-right">Description</Label>
-                  <Input
-                    id="edit-description"
-                    value={editItem.description || ""}
-                    onChange={e => setEditItem({ ...editItem, description: e.target.value })}
-                    className="col-span-3"
-                  />
-                </div>
               </div>
             )}
             <DialogFooter>
@@ -610,14 +482,9 @@ const Groceries = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9
       </div>
     </div>
   );
 };
 
-<<<<<<< HEAD
 export default Groceries;
-=======
-export default Groceries;
->>>>>>> ccc2d2cb977d9c48a5a5a4d609b0b935d996d8d9

@@ -1,12 +1,17 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+
+interface User {
+  id: string;
+  email: string;
+  name?: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (email: string, password: string, name?: string) => Promise<boolean>;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,35 +30,56 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+    // Check for stored user session
+    const storedUser = localStorage.getItem('auth_user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error('Error parsing stored user:', error);
+        localStorage.removeItem('auth_user');
       }
-    );
-
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+  const signIn = async (email: string, password: string): Promise<boolean> => {
+    // Simple offline authentication - in a real app, you'd validate against a server
+    // For now, accept any email/password combination
+    const user: User = {
+      id: crypto.randomUUID(),
+      email,
+      name: email.split('@')[0]
+    };
+
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    setUser(user);
+    return true;
+  };
+
+  const signUp = async (email: string, password: string, name?: string): Promise<boolean> => {
+    // Simple offline registration
+    const user: User = {
+      id: crypto.randomUUID(),
+      email,
+      name: name || email.split('@')[0]
+    };
+
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    setUser(user);
+    return true;
+  };
+
+  const signOut = () => {
+    localStorage.removeItem('auth_user');
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

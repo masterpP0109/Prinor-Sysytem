@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,49 +15,31 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
     // Check if user is already logged in
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate('/');
-      }
-    };
-    checkUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate('/');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: fullName,
-          }
-        }
-      });
+      const success = await signUp(email, password, fullName);
 
-      if (error) throw error;
-
-      toast({
-        title: "Success!",
-        description: "Please check your email to confirm your account.",
-      });
+      if (success) {
+        toast({
+          title: "Success!",
+          description: "Account created successfully.",
+        });
+        navigate('/');
+      } else {
+        throw new Error("Failed to create account");
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -74,17 +56,17 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const success = await signIn(email, password);
 
-      if (error) throw error;
-
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully signed in.",
-      });
+      if (success) {
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully signed in.",
+        });
+        navigate('/');
+      } else {
+        throw new Error("Invalid credentials");
+      }
     } catch (error) {
       toast({
         title: "Error",

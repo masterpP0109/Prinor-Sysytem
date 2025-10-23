@@ -11,7 +11,6 @@ import { ClipboardCheck, Package, Save, ArrowLeft, CheckCircle, Plus } from "luc
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 
 interface CountItem {
   id: string;
@@ -83,13 +82,8 @@ const Counting = () => {
 
   const fetchShelves = async () => {
     try {
-      const { data, error } = await supabase
-        .from('shelves')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      setShelves(data || []);
+      // Mock data for shelves since supabase is not available
+      setShelves(STATIC_SHELVES);
     } catch (error) {
       toast({
         title: "Error",
@@ -112,15 +106,15 @@ const Counting = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('shelves')
-        .insert({
-          user_id: user?.id,
-          name: newShelfName.trim(),
-          description: newShelfDescription.trim() || null
-        });
+      // Mock adding shelf since supabase is not available
+      const newShelf: Shelf = {
+        id: `user-${Date.now()}`,
+        name: newShelfName.trim(),
+        description: newShelfDescription.trim() || null,
+        created_at: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      setShelves(prev => [...prev, newShelf]);
 
       toast({
         title: "Success",
@@ -130,7 +124,6 @@ const Counting = () => {
       setNewShelfName("");
       setNewShelfDescription("");
       setShowAddDialog(false);
-      fetchShelves();
     } catch (error) {
       toast({
         title: "Error",
@@ -146,8 +139,7 @@ const Counting = () => {
     if (!shelf) return;
     if (!window.confirm(`Delete shelf '${shelf.name}'? This cannot be undone.`)) return;
     try {
-      const { error } = await supabase.from('shelves').delete().eq('id', shelfId);
-      if (error) throw error;
+      // Mock delete since supabase is not available
       setShelves(shelves => shelves.filter(s => s.id !== shelfId));
       setCountData(items => items.filter(item => item.shelf !== shelf.name && item.shelf !== shelfId));
       toast({ title: "Shelf Deleted", description: `Shelf '${shelf.name}' deleted.` });

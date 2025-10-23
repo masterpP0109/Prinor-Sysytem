@@ -6,17 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, CreditCard, DollarSign } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { addPayment, getPayments } from "@/lib/storage";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface Payment {
   id: string;
   amount: number;
-  payment_method: string;
-  payment_date: string;
-  reference_number?: string;
+  method: 'cash' | 'card' | 'mobile';
   notes?: string;
+  createdAt: string;
 }
 
 export const PaymentManagement = () => {
@@ -24,8 +23,7 @@ export const PaymentManagement = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newPayment, setNewPayment] = useState({
     amount: "",
-    paymentMethod: "cash",
-    referenceNumber: "",
+    method: "cash" as 'cash' | 'card' | 'mobile',
     notes: ""
   });
   const { user } = useAuth();
@@ -37,21 +35,12 @@ export const PaymentManagement = () => {
     }
   }, [user]);
 
-  const fetchPayments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .order('payment_date', { ascending: false });
-
-      if (error) throw error;
-      setPayments(data || []);
-    } catch (error) {
-      console.error('Error fetching payments:', error);
-    }
+  const fetchPayments = () => {
+    const data = getPayments();
+    setPayments(data);
   };
 
-  const handleAddPayment = async () => {
+  const handleAddPayment = () => {
     if (!newPayment.amount) {
       toast({
         title: "Error",
@@ -62,24 +51,18 @@ export const PaymentManagement = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('payments')
-        .insert({
-          amount: parseFloat(newPayment.amount),
-          payment_method: newPayment.paymentMethod,
-          reference_number: newPayment.referenceNumber,
-          notes: newPayment.notes,
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addPayment({
+        amount: parseFloat(newPayment.amount),
+        method: newPayment.method,
+        notes: newPayment.notes
+      });
 
       toast({
         title: "Success",
         description: "Payment recorded successfully"
       });
 
-      setNewPayment({ amount: "", paymentMethod: "cash", referenceNumber: "", notes: "" });
+      setNewPayment({ amount: "", method: "cash", notes: "" });
       setIsDialogOpen(false);
       fetchPayments();
     } catch (error) {
@@ -131,28 +114,16 @@ export const PaymentManagement = () => {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="payment-method" className="text-right">Method</Label>
-                <Select value={newPayment.paymentMethod} onValueChange={(value) => setNewPayment({...newPayment, paymentMethod: value})}>
+                <Select value={newPayment.method} onValueChange={(value: 'cash' | 'card' | 'mobile') => setNewPayment({...newPayment, method: value})}>
                   <SelectTrigger className="col-span-3">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                    <SelectItem value="check">Check</SelectItem>
+                    <SelectItem value="mobile">Mobile</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="reference" className="text-right">Reference</Label>
-                <Input
-                  id="reference"
-                  value={newPayment.referenceNumber}
-                  onChange={(e) => setNewPayment({...newPayment, referenceNumber: e.target.value})}
-                  className="col-span-3"
-                  placeholder="Transaction reference (optional)"
-                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="payment-notes" className="text-right">Notes</Label>
@@ -189,10 +160,10 @@ export const PaymentManagement = () => {
                 <div key={payment.id} className="flex justify-between items-center p-2 border rounded">
                   <div>
                     <p className="font-medium">${payment.amount.toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">{payment.payment_method}</p>
+                    <p className="text-xs text-muted-foreground">{payment.method}</p>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(payment.payment_date).toLocaleDateString()}
+                    {new Date(payment.createdAt).toLocaleDateString()}
                   </span>
                 </div>
               ))

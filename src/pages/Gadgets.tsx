@@ -8,27 +8,25 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Edit, Package, ArrowLeft, Trash2, Smartphone, Cpu, Monitor } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { getItems, addItem, updateItem, deleteItem, getShelves, addShelf } from "@/lib/storage";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
 interface GadgetItem {
   id: string;
+  shelfId: string;
   name: string;
+  initialQuantity: number;
+  soldQuantity: number;
+  remainingQuantity: number;
   price: number;
-  description?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
 }
 
 interface Shelf {
   id: string;
   name: string;
-  description?: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
 }
 
 const Gadgets = () => {
@@ -62,37 +60,23 @@ const Gadgets = () => {
     }
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = () => {
     try {
       setLoading(true);
-      
-      // Fetch gadget items (items with tech-related keywords or gadget category)
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      if (itemsError) throw itemsError;
-
-      // Filter for gadget-related items
+      // Fetch all items and filter for gadget-related ones
+      const allItems = getItems();
       const gadgetKeywords = ['phone', 'laptop', 'tablet', 'headphone', 'camera', 'watch', 'electronic', 'gadget', 'tech', 'computer', 'speaker', 'mouse', 'keyboard'];
-      const gadgetItems = itemsData?.filter(item => {
+      const gadgetItems = allItems.filter(item => {
         const itemName = item.name?.toLowerCase() || '';
-        return gadgetKeywords.some(keyword => itemName.includes(keyword)) || 
-               item.description?.toLowerCase().includes('gadget') ||
-               item.description?.toLowerCase().includes('electronic');
-      }) || [];
+        return gadgetKeywords.some(keyword => itemName.includes(keyword));
+      });
 
       setItems(gadgetItems);
 
       // Fetch shelves
-      const { data: shelvesData, error: shelvesError } = await supabase
-        .from('shelves')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (shelvesError) throw shelvesError;
-      setShelves(shelvesData || []);
+      const shelvesData = getShelves();
+      setShelves(shelvesData);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -106,7 +90,7 @@ const Gadgets = () => {
     }
   };
 
-  const handleAddItem = async () => {
+  const handleAddItem = () => {
     if (!newItem.name || !newItem.price) {
       toast({
         title: "Error",
@@ -117,16 +101,14 @@ const Gadgets = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('items')
-        .insert({
-          name: newItem.name,
-          price: parseFloat(newItem.price),
-          description: newItem.description + " (Gadget)",
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addItem({
+        shelfId: newItem.shelf || "",
+        name: newItem.name,
+        initialQuantity: 1,
+        soldQuantity: 0,
+        remainingQuantity: 1,
+        price: parseFloat(newItem.price)
+      });
 
       toast({
         title: "Success",
@@ -146,7 +128,7 @@ const Gadgets = () => {
     }
   };
 
-  const handleAddShelf = async () => {
+  const handleAddShelf = () => {
     if (!newShelf.name) {
       toast({
         title: "Error",
@@ -157,15 +139,7 @@ const Gadgets = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('shelves')
-        .insert({
-          name: newShelf.name,
-          description: newShelf.description + " (Gadgets Section)",
-          user_id: user?.id
-        });
-
-      if (error) throw error;
+      addShelf(newShelf.name);
 
       toast({
         title: "Success",
@@ -185,20 +159,14 @@ const Gadgets = () => {
     }
   };
 
-  const handleEditSave = async () => {
+  const handleEditSave = () => {
     if (!editItem) return;
 
     try {
-      const { error } = await supabase
-        .from('items')
-        .update({
-          name: editItem.name,
-          price: editItem.price,
-          description: editItem.description
-        })
-        .eq('id', editItem.id);
-
-      if (error) throw error;
+      updateItem(editItem.id, {
+        name: editItem.name,
+        price: editItem.price
+      });
 
       toast({
         title: "Success",
@@ -218,14 +186,9 @@ const Gadgets = () => {
     }
   };
 
-  const handleDeleteItem = async (id: string) => {
+  const handleDeleteItem = (id: string) => {
     try {
-      const { error } = await supabase
-        .from('items')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      deleteItem(id);
 
       toast({
         title: "Success",
@@ -247,7 +210,7 @@ const Gadgets = () => {
 
   const filteredItems = useMemo(() => {
     if (selectedShelf === "all") return items;
-    return items.filter(item => item.description?.includes(selectedShelf));
+    return items.filter(item => item.shelfId === selectedShelf);
   }, [items, selectedShelf]);
 
   const totalValue = filteredItems.reduce((sum, item) => sum + item.price, 0);
@@ -452,7 +415,7 @@ const Gadgets = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold">{item.name}</h3>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                      <p className="text-sm text-muted-foreground">Qty: {item.remainingQuantity}</p>
                       <Badge variant="secondary" className="mt-1">Gadget</Badge>
                     </div>
                   </div>
@@ -463,7 +426,7 @@ const Gadgets = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Added</p>
-                      <p className="text-sm">{new Date(item.created_at).toLocaleDateString()}</p>
+                      <p className="text-sm">{new Date(item.createdAt).toLocaleDateString()}</p>
                     </div>
                     <Button variant="outline" size="sm" onClick={() => { setEditItem(item); setEditDialogOpen(true); }}>
                       <Edit className="h-4 w-4" />
@@ -501,15 +464,6 @@ const Gadgets = () => {
                     step="0.01"
                     value={editItem.price}
                     onChange={e => setEditItem({ ...editItem, price: parseFloat(e.target.value) || 0 })}
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="edit-description" className="text-right">Description</Label>
-                  <Input
-                    id="edit-description"
-                    value={editItem.description || ""}
-                    onChange={e => setEditItem({ ...editItem, description: e.target.value })}
                     className="col-span-3"
                   />
                 </div>

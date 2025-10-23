@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { OrderManagement } from "@/components/OrderManagement";
 import { PaymentManagement } from "@/components/PaymentManagement";
-import { supabase } from "@/integrations/supabase/client";
+import { getItems, getShelves, getOrders, getPayments, calculateTotalInventoryValue, calculateExpectedCash } from "@/lib/storage";
 // Helper to load inventory from localStorage
 function loadInventory() {
   try {
@@ -23,32 +23,6 @@ const Index = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
-  };
-
   // Dashboard stats state
   const [dashboardStats, setDashboardStats] = useState({
     totalItems: 0,
@@ -57,73 +31,56 @@ const Index = () => {
     lastCount: null as null | { date: string; shelf: string },
     groceriesStats: { items: 0, value: 0 },
     gadgetsStats: { items: 0, value: 0 },
-    recentOrders: [] as Array<{ id: string; order_number: string; total_amount: number; order_date: string; status: string }>,
+    recentOrders: [] as Array<{ id: string; itemId: string; itemName: string; quantity: number; totalPrice: number; createdAt: string }>,
     totalOrders: 0,
     totalPayments: 0,
     netAssets: 0
   });
 
-  // Fetch real data from Supabase
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  // Fetch data from local storage
   useEffect(() => {
     if (!user) return;
 
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = () => {
       try {
         // Fetch items with category classification
-        const { data: items } = await supabase
-          .from('items')
-          .select('*');
+        const items = getItems();
 
         // Fetch shelves
-        const { data: shelves } = await supabase
-          .from('shelves')
-          .select('*');
+        const shelves = getShelves();
 
         // Fetch recent orders
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('*')
-          .order('order_date', { ascending: false })
-          .limit(5);
+        const orders = getOrders().slice(0, 5);
 
-        // Fetch total orders amount
-        const { data: allOrders } = await supabase
-          .from('orders')
-          .select('total_amount');
-
-        // Fetch total payments amount
-        const { data: payments } = await supabase
-          .from('payments')
-          .select('amount');
-
-        // Fetch latest stock count
-        const { data: lastCount } = await supabase
-          .from('stock_counts')
-          .select('count_date, shelf_id, shelves(name)')
-          .order('count_date', { ascending: false })
-          .limit(1)
-          .single();
+        // Fetch payments
+        const payments = getPayments();
 
         // Calculate stats
-        const totalItems = items?.length || 0;
-        const totalValue = items?.reduce((sum, item) => sum + (Number(item.price) || 0), 0) || 0;
-        const totalShelves = shelves?.length || 0;
+        const totalItems = items.length;
+        const totalValue = calculateTotalInventoryValue().total;
+        const totalShelves = shelves.length;
 
         // Categorize items (simple categorization by name keywords)
         const groceriesKeywords = ['food', 'drink', 'milk', 'bread', 'fruit', 'vegetable', 'meat', 'grocery', 'snack'];
         const gadgetsKeywords = ['phone', 'laptop', 'tablet', 'headphone', 'camera', 'watch', 'electronic', 'gadget', 'tech'];
-        
+
         let groceriesItems = 0, groceriesValue = 0;
         let gadgetsItems = 0, gadgetsValue = 0;
 
-        items?.forEach(item => {
+        items.forEach(item => {
           if (!item?.name) return; // Skip items without names
           const itemName = item.name.toLowerCase();
-          const itemPrice = Number(item.price) || 0;
-          
+          const itemPrice = item.price;
+
           const isGrocery = groceriesKeywords.some(keyword => itemName.includes(keyword));
           const isGadget = gadgetsKeywords.some(keyword => itemName.includes(keyword));
-          
+
           if (isGrocery) {
             groceriesItems++;
             groceriesValue += itemPrice;
@@ -138,21 +95,19 @@ const Index = () => {
         });
 
         // Calculate financial stats
-        const totalOrdersAmount = allOrders?.reduce((sum, order) => sum + (Number(order.total_amount) || 0), 0) || 0;
-        const totalPaymentsAmount = payments?.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0) || 0;
+        const totalOrdersAmount = orders.reduce((sum, order) => sum + order.totalPrice, 0);
+        const totalPaymentsAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const expectedCash = calculateExpectedCash();
         const netAssets = totalValue + totalPaymentsAmount - totalOrdersAmount;
 
         setDashboardStats({
           totalItems,
           totalShelves,
           totalValue,
-          lastCount: lastCount ? {
-            date: lastCount.count_date,
-            shelf: (lastCount.shelves as any)?.name || 'Unknown'
-          } : null,
+          lastCount: null, // No stock counts in local storage yet
           groceriesStats: { items: groceriesItems, value: groceriesValue },
           gadgetsStats: { items: gadgetsItems, value: gadgetsValue },
-          recentOrders: orders || [],
+          recentOrders: orders,
           totalOrders: totalOrdersAmount,
           totalPayments: totalPaymentsAmount,
           netAssets
@@ -163,18 +118,6 @@ const Index = () => {
     };
 
     fetchDashboardData();
-    
-    // Set up real-time listeners for updates
-    const itemsChannel = supabase
-      .channel('dashboard-items')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, fetchDashboardData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchDashboardData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, fetchDashboardData)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(itemsChannel);
-    };
   }, [user]);
 
   return (
@@ -193,7 +136,7 @@ const Index = () => {
                   Advanced stocktake management for groceries & gadgets with real-time tracking
                 </p>
               </div>
-              <Button variant="outline" onClick={handleSignOut} className="shrink-0">
+              <Button variant="outline" onClick={signOut} className="shrink-0">
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
               </Button>
@@ -327,7 +270,7 @@ const Index = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <OrderManagement />
             <PaymentManagement />
-            
+
             {/* Recent Orders Summary */}
             <Card className="h-full">
               <CardHeader>
@@ -346,7 +289,7 @@ const Index = () => {
                       <div className="text-sm text-muted-foreground">Payments: ${dashboardStats.totalPayments.toFixed(2)}</div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {dashboardStats.recentOrders.length === 0 ? (
                       <div className="text-center py-4 text-muted-foreground">
@@ -357,13 +300,13 @@ const Index = () => {
                       dashboardStats.recentOrders.map((order) => (
                         <div key={order.id} className="flex justify-between items-center p-2 border rounded">
                           <div>
-                            <p className="font-medium text-sm">{order.order_number}</p>
-                            <p className="text-xs text-muted-foreground">{order.status}</p>
+                            <p className="font-medium text-sm">{order.itemName}</p>
+                            <p className="text-xs text-muted-foreground">Qty: {order.quantity}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-sm">${order.total_amount.toFixed(2)}</p>
+                            <p className="font-semibold text-sm">${order.totalPrice.toFixed(2)}</p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(order.order_date).toLocaleDateString()}
+                              {new Date(order.createdAt).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
