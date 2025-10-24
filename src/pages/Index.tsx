@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { OrderManagement } from "@/components/OrderManagement";
 import { PaymentManagement } from "@/components/PaymentManagement";
-import { getItems, getShelves, getOrders, getPayments, calculateTotalInventoryValue, calculateExpectedCash, calculateTotalSales, addShelf, getItemsByShelf, updateItem, deleteItem, addItem, Shelf, Item } from "@/lib/storage";
+import { getItems, getShelves, getOrders, getPayments, calculateTotalInventoryValue, calculateExpectedCash, calculateTotalSales, addShelf, getItemsByShelf, updateItem, deleteItem, addItem, deleteShelf, Shelf, Item, Order } from "@/lib/storage";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +37,7 @@ const Index = () => {
     lastCount: null as null | { date: string; shelf: string },
     groceriesStats: { items: 0, value: 0 },
     gadgetsStats: { items: 0, value: 0 },
-    recentOrders: [] as any[],
+    recentOrders: [] as Order[],
     totalOrders: 0,
     totalPayments: 0,
     totalSales: 0,
@@ -46,12 +46,12 @@ const Index = () => {
   });
 
   // Shelves and items state
-  const [shelves, setShelves] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([]);
+  const [shelves, setShelves] = useState<Shelf[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [expandedShelves, setExpandedShelves] = useState<Set<string>>(new Set());
   const [newShelfName, setNewShelfName] = useState('');
   const [isAddShelfOpen, setIsAddShelfOpen] = useState(false);
-  const [editingShelf, setEditingShelf] = useState<any>(null);
+  const [editingShelf, setEditingShelf] = useState<Shelf | null>(null);
   const [editShelfName, setEditShelfName] = useState('');
 
   useEffect(() => {
