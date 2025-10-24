@@ -1,77 +1,170 @@
-# Welcome to your Lovable project
+# Shelf Shaper Sync - Offline Inventory Management System
 
-## Project info
+An offline-first inventory management system built as a React web application for managing physical shelves and stock items without requiring an internet connection.
 
-**URL**: https://lovable.dev/projects/ccb2820f-0a1e-48c0-91e2-c1721aeb1848
+## System Overview
 
-## How can I edit this code?
+This is an **offline-first inventory management system** built as a React web application. It allows users to manage physical shelves and their stock items without requiring an internet connection, storing all data locally in the browser's localStorage.
 
-There are several ways of editing your application.
+## Core Technologies
 
-**Use Lovable**
+- **Frontend Framework**: React 18 with TypeScript
+- **Build Tool**: Vite
+- **UI Library**: shadcn/ui components with Radix UI primitives
+- **Styling**: Tailwind CSS
+- **Routing**: React Router DOM
+- **State Management**: React Query for data fetching (though primarily used for local state)
+- **Icons**: Lucide React
+- **Forms**: React Hook Form with Zod validation
+- **Notifications**: Sonner for toast messages
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/ccb2820f-0a1e-48c0-91e2-c1721aeb1848) and start prompting.
+## Architecture
 
-Changes made via Lovable will be committed automatically to this repo.
+### Data Model
 
-**Use your preferred IDE**
+The system manages four main entities:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. **Shelves** (`Shelf`): Physical storage locations
+   - `id`: Unique identifier
+   - `name`: Display name
+   - `createdAt`: Timestamp
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. **Items** (`Item`): Products stored on shelves
+   - `id`, `shelfId`: Unique ID and parent shelf reference
+   - `name`, `price`: Product details
+   - `initialQuantity`, `soldQuantity`, `remainingQuantity`: Stock tracking
+   - `createdAt`: Timestamp
 
-Follow these steps:
+3. **Orders** (`Order`): Sales transactions (currently unused in UI)
+   - `id`, `itemId`, `itemName`: Transaction details
+   - `quantity`, `totalPrice`: Sale amounts
+   - `createdAt`: Timestamp
 
+4. **Payments** (`Payment`): Cash flow tracking
+   - `id`, `amount`, `method`: Payment details
+   - `notes`: Optional description
+   - `createdAt`: Timestamp
+
+### Storage Layer (`src/lib/storage.ts`)
+
+All data is persisted using browser localStorage with JSON serialization:
+
+- **Generic Functions**: `getFromStorage<T>()` and `saveToStorage<T>()` handle CRUD operations
+- **Entity-Specific Functions**: CRUD operations for shelves, items, orders, and payments
+- **Calculations**:
+  - `calculateShelfValue()`: Computes total, sold, and remaining value per shelf
+  - `calculateTotalInventoryValue()`: Aggregates values across all shelves
+  - `calculateExpectedCash()`: Calculates expected cash (total sales minus recorded payments)
+
+### Application Structure
+
+#### Routing (`src/App.tsx`)
+- Root route (`/`) redirects to `/dashboard`
+- Dashboard route (`/dashboard`) renders the main interface
+- 404 handling for invalid routes
+
+#### Main Dashboard (`src/pages/Dashboard.tsx`)
+The primary interface featuring:
+- **Header**: Title and "Add Shelf" button
+- **Statistics Cards**: Overview of inventory values, sales, remaining stock, and expected cash
+- **Two-Column Layout**:
+  - Left: Shelves and their items
+  - Right: Payments tracker
+
+#### Components
+
+**ShelfCard** (`src/components/ShelfCard.tsx`):
+- Displays shelf name and summary statistics
+- Collapsible to show/hide items
+- Buttons for editing shelf, deleting shelf, and adding items
+- Renders `ItemRow` components for each item
+
+**ItemRow** (`src/components/ItemRow.tsx`):
+- Shows item details (name, price, total value)
+- Quantity controls for sold/remaining stock
+- Edit mode for modifying item properties
+- Delete functionality
+
+**DashboardStats** (`src/components/DashboardStats.tsx`):
+- Four metric cards showing key financial and inventory data
+- Uses icons and color coding for visual distinction
+
+**PaymentsSection** (`src/components/PaymentsSection.tsx`):
+- Form for recording new payments (amount, method, notes)
+- List of all recorded payments with delete functionality
+- Shows total payments amount
+
+**Dialog Components**:
+- `AddShelfDialog`: Modal for creating/editing shelves
+- `AddItemDialog`: Modal for adding new items to shelves
+
+## Data Flow
+
+1. **Initialization**: App loads and redirects to dashboard
+2. **Data Loading**: Components fetch data from localStorage on mount
+3. **User Interactions**:
+   - Add/Edit/Delete shelves → Updates localStorage → Refreshes UI
+   - Add items to shelves → Updates localStorage → Refreshes shelf display
+   - Adjust item quantities → Updates sold/remaining → Recalculates values
+   - Record payments → Updates payment list → Recalculates expected cash
+4. **Real-time Updates**: All changes trigger UI refreshes via `refreshData()` callbacks
+
+## Key Features
+
+- **Offline-First**: No server dependency, all data stored locally
+- **Hierarchical Organization**: Shelves contain items
+- **Real-time Calculations**: Values update immediately on quantity changes
+- **Dual Quantity Tracking**: Both sold and remaining quantities maintained
+- **Payment Tracking**: Separate from sales for cash flow management
+- **Responsive Design**: Works on desktop and mobile devices
+- **Form Validation**: Input validation with error messages
+- **Confirmation Dialogs**: Prevents accidental deletions
+
+## Business Logic
+
+- **Stock Management**: Items have initial quantity, track sold vs remaining
+- **Value Calculations**: Price × quantity for totals, sold amounts, remaining values
+- **Cash Reconciliation**: Expected cash = total sales value - recorded payments
+- **Data Integrity**: Deleting shelves removes associated items
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+### Installation
+
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
+cd shelf-shaper-sync
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install dependencies:
+```sh
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Start the development server:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+This project can be deployed using various platforms. For production deployment:
 
-**Use GitHub Codespaces**
+1. Build the project: `npm run build`
+2. Deploy the `dist` folder to your hosting platform (Netlify, Vercel, etc.)
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Usage
 
-## What technologies are used for this project?
+1. **Dashboard**: Overview of inventory and financial metrics
+2. **Groceries**: Manage food and grocery items
+3. **Gadgets**: Manage electronics and tech items
+4. **Inventory**: General inventory management
+5. **Counting**: Stock counting by shelf location
+6. **Reports**: View stocktake reports and analytics
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/ccb2820f-0a1e-48c0-91e2-c1721aeb1848) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
-# Prinor-Sysytem
-# Prinor-Sysytem
-# Prinor-Sysytem
-"# Prinor-Sysytem" 
+This system is designed for small retail operations or personal inventory tracking where offline capability and simplicity are prioritized over complex features like user accounts, multi-location support, or advanced reporting.

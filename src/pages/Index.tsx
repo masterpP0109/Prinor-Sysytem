@@ -1,13 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EnhancedCard, EnhancedCardContent, EnhancedCardDescription, EnhancedCardHeader, EnhancedCardTitle } from "@/components/ui/enhanced-card";
 import { Button } from "@/components/ui/button";
-import { Package, ClipboardCheck, TrendingUp, History, Plus, LogOut, ShoppingBasket, Smartphone, Store, BarChart3 } from "lucide-react";
+import { Package, ClipboardCheck, TrendingUp, History, Plus, LogOut, ShoppingBasket, Smartphone, Store, BarChart3, DollarSign, CreditCard } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect, useState } from "react";
 import { OrderManagement } from "@/components/OrderManagement";
 import { PaymentManagement } from "@/components/PaymentManagement";
-import { getItems, getShelves, getOrders, getPayments, calculateTotalInventoryValue, calculateExpectedCash } from "@/lib/storage";
+import { getItems, getShelves, getOrders, getPayments, calculateTotalInventoryValue, calculateExpectedCash, calculateTotalSales, addShelf, getItemsByShelf, updateItem, deleteItem, addItem, Shelf, Item } from "@/lib/storage";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown, Edit, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 // Helper to load inventory from localStorage
 function loadInventory() {
   try {
@@ -31,11 +37,22 @@ const Index = () => {
     lastCount: null as null | { date: string; shelf: string },
     groceriesStats: { items: 0, value: 0 },
     gadgetsStats: { items: 0, value: 0 },
-    recentOrders: [] as Array<{ id: string; itemId: string; itemName: string; quantity: number; totalPrice: number; createdAt: string }>,
+    recentOrders: [] as any[],
     totalOrders: 0,
     totalPayments: 0,
-    netAssets: 0
+    totalSales: 0,
+    netAssets: 0,
+    expectedCash: 0
   });
+
+  // Shelves and items state
+  const [shelves, setShelves] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>([]);
+  const [expandedShelves, setExpandedShelves] = useState<Set<string>>(new Set());
+  const [newShelfName, setNewShelfName] = useState('');
+  const [isAddShelfOpen, setIsAddShelfOpen] = useState(false);
+  const [editingShelf, setEditingShelf] = useState<any>(null);
+  const [editShelfName, setEditShelfName] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -95,8 +112,9 @@ const Index = () => {
         });
 
         // Calculate financial stats
-        const totalOrdersAmount = orders.reduce((sum, order) => sum + order.totalPrice, 0);
+        const totalOrdersAmount = orders.reduce((sum, order) => sum + order.totalAmount, 0);
         const totalPaymentsAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const totalSalesAmount = calculateTotalSales();
         const expectedCash = calculateExpectedCash();
         const netAssets = totalValue + totalPaymentsAmount - totalOrdersAmount;
 
@@ -110,7 +128,9 @@ const Index = () => {
           recentOrders: orders,
           totalOrders: totalOrdersAmount,
           totalPayments: totalPaymentsAmount,
-          netAssets
+          totalSales: totalSalesAmount,
+          netAssets,
+          expectedCash
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -179,12 +199,16 @@ const Index = () => {
 
           <EnhancedCard variant="gradient" className="hover:scale-[1.02] transition-transform duration-200">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Net Assets</CardTitle>
-              <TrendingUp className="h-5 w-5 text-primary" />
+              <CardTitle className="text-sm font-medium">Expected Cash</CardTitle>
+              <DollarSign className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">${dashboardStats.netAssets.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-              <p className="text-xs text-muted-foreground mt-1">Inventory + Payments - Orders</p>
+              <div className={`text-3xl font-bold ${dashboardStats.expectedCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                ${dashboardStats.expectedCash.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dashboardStats.expectedCash >= 0 ? 'Cash owed to you' : 'Cash discrepancy'}
+              </p>
             </CardContent>
           </EnhancedCard>
 
@@ -264,6 +288,206 @@ const Index = () => {
           </div>
         </div>
 
+        {/* Inventory Management */}
+        <div className="mb-12">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-3xl font-bold">Inventory Management</h2>
+            <Dialog open={isAddShelfOpen} onOpenChange={setIsAddShelfOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Shelf
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Shelf</DialogTitle>
+                  <DialogDescription>
+                    Create a new shelf to organize your inventory items.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="shelf-name">Shelf Name</Label>
+                    <Input
+                      id="shelf-name"
+                      value={newShelfName}
+                      onChange={(e) => setNewShelfName(e.target.value)}
+                      placeholder="e.g., Beverages, Snacks, Electronics"
+                    />
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (newShelfName.trim()) {
+                        addShelf(newShelfName.trim());
+                        setNewShelfName('');
+                        setIsAddShelfOpen(false);
+                        // Refresh data
+                        const updatedShelves = getShelves();
+                        setShelves(updatedShelves);
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    Add Shelf
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="space-y-4">
+            {shelves.map((shelf) => {
+              const shelfItems = getItemsByShelf(shelf.id);
+              const isExpanded = expandedShelves.has(shelf.id);
+
+              return (
+                <Card key={shelf.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <Collapsible open={isExpanded} onOpenChange={(open) => {
+                          const newExpanded = new Set(expandedShelves);
+                          if (open) {
+                            newExpanded.add(shelf.id);
+                          } else {
+                            newExpanded.delete(shelf.id);
+                          }
+                          setExpandedShelves(newExpanded);
+                        }}>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            </Button>
+                          </CollapsibleTrigger>
+                        </Collapsible>
+                        <div>
+                          <CardTitle className="text-lg">{shelf.name}</CardTitle>
+                          <CardDescription>
+                            {shelfItems.length} items • Total value: ${shelfItems.reduce((sum, item) => sum + (item.price * item.initialQuantity), 0).toFixed(2)}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingShelf(shelf);
+                            setEditShelfName(shelf.name);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Shelf</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{shelf.name}"? This will also delete all items in this shelf.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => {
+                                  deleteShelf(shelf.id); // This will delete the shelf and its items
+                                  const updatedShelves = getShelves();
+                                  setShelves(updatedShelves);
+                                  const updatedItems = getItems();
+                                  setItems(updatedItems);
+                                }}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <Collapsible open={isExpanded} onOpenChange={() => {}}>
+                    <CollapsibleContent>
+                      <CardContent>
+                        {shelfItems.length === 0 ? (
+                          <p className="text-muted-foreground text-center py-4">No items in this shelf yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {shelfItems.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div>
+                                  <p className="font-medium">{item.name}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    Price: ${item.price.toFixed(2)} • Initial: {item.initialQuantity} • Sold: {item.sold} • Remaining: {item.remaining}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const newRemaining = prompt(`Update remaining quantity for ${item.name}:`, item.remaining.toString());
+                                      if (newRemaining !== null) {
+                                        const remaining = parseInt(newRemaining);
+                                        if (!isNaN(remaining)) {
+                                          updateItem(item.id, {
+                                            remaining,
+                                            sold: item.initialQuantity - remaining
+                                          });
+                                          const updatedItems = getItems();
+                                          setItems(updatedItems);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    Update Stock
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Item</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete "{item.name}"?
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => {
+                                            deleteItem(item.id);
+                                            const updatedItems = getItems();
+                                            setItems(updatedItems);
+                                          }}
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Financial Tracking */}
         <div className="mb-12">
           <h2 className="text-3xl font-bold mb-8 text-center">Financial Management</h2>
@@ -285,6 +509,7 @@ const Index = () => {
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                     <span className="text-sm font-medium">Financial Summary:</span>
                     <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Sales: ${dashboardStats.totalSales.toFixed(2)}</div>
                       <div className="text-sm text-muted-foreground">Orders: ${dashboardStats.totalOrders.toFixed(2)}</div>
                       <div className="text-sm text-muted-foreground">Payments: ${dashboardStats.totalPayments.toFixed(2)}</div>
                     </div>
@@ -300,13 +525,13 @@ const Index = () => {
                       dashboardStats.recentOrders.map((order) => (
                         <div key={order.id} className="flex justify-between items-center p-2 border rounded">
                           <div>
-                            <p className="font-medium text-sm">{order.itemName}</p>
+                            <p className="font-medium text-sm">{order.itemId}</p>
                             <p className="text-xs text-muted-foreground">Qty: {order.quantity}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-sm">${order.totalPrice.toFixed(2)}</p>
+                            <p className="font-semibold text-sm">${order.totalAmount.toFixed(2)}</p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(order.createdAt).toLocaleDateString()}
+                              {new Date(order.timestamp).toLocaleDateString()}
                             </p>
                           </div>
                         </div>
@@ -322,7 +547,7 @@ const Index = () => {
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-8 text-center">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <EnhancedCard className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border-primary/20">
               <CardHeader className="text-center">
                 <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
@@ -362,6 +587,24 @@ const Index = () => {
             <EnhancedCard className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border-primary/20">
               <CardHeader className="text-center">
                 <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+                <CardTitle className="text-primary">Sales Management</CardTitle>
+                <CardDescription>Track sales transactions and revenue for your business</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Link to="/sales">
+                  <Button className="w-full" size="lg">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Manage Sales
+                  </Button>
+                </Link>
+              </CardContent>
+            </EnhancedCard>
+
+            <EnhancedCard className="hover:shadow-xl transition-all duration-300 hover:scale-[1.02] border-primary/20">
+              <CardHeader className="text-center">
+                <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
                   <BarChart3 className="h-6 w-6 text-primary" />
                 </div>
                 <CardTitle className="text-primary">Analytics & Reports</CardTitle>
@@ -370,7 +613,7 @@ const Index = () => {
               <CardContent>
                 <Link to="/reports">
                   <Button className="w-full" variant="secondary" size="lg">
-                    <TrendingUp className="h-4 w-4 mr-2" />
+                    <BarChart3 className="h-4 w-4 mr-2" />
                     View Reports
                   </Button>
                 </Link>

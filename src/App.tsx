@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import Gadgets from "./pages/Gadgets";
 import Groceries from "./pages/Groceries";
+import Sales from "./pages/Sales";
 
 const App = () => (
   <AuthProvider>
